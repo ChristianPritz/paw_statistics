@@ -72,11 +72,12 @@ This toolkit allows you to train custom keypoint detection models, run inference
 ```
 ## Trouble shoot 
 
----
-torch not found			    Reinstall PyTorch using the official command for your CUDA version.
-detectron2 build failed		Make sure your PyTorch and CUDA versions are compatible.
-opencv import error		    Try reinstalling with pip install opencv-python-headless.
-GPU not detected		    Check torch.cuda.is_available() — update your NVIDIA drivers or CUDA toolkit.
+| Issue | Solution |
+|:------|:----------|
+| **torch not found** | Reinstall PyTorch using the official command for your CUDA version. |
+| **detectron2 build failed** | Make sure your PyTorch and CUDA versions are compatible. |
+| **opencv import error** | Try reinstalling with `pip install opencv-python-headless`. |
+| **GPU not detected** | Check `torch.cuda.is_available()` — update your NVIDIA drivers or CUDA toolkit. |
 
 ---
 
