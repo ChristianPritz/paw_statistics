@@ -64,8 +64,10 @@ def fetch_from_osf(token: str, osf_resource_id: str, destination: str):
                                 f.write(chunk)
 
                 # If the downloaded file is an archive, try extracting it into the same local_path
-                if try_extract_archive(file_path, local_path):
-                    print(f"✅ Extracted archive into: {local_path}")
+                stm,fname = a,b = os.path.split(file_path)
+                if fname=='demo_images.zip':
+                    if try_extract_archive(file_path, local_path):
+                        print(f"✅ Extracted archive into: {local_path}")
             else:
                 print(f"⚠️ Unknown entry type: {kind} ({name})")
 
@@ -77,6 +79,3 @@ if __name__ == "__main__":
     OSF_TOKEN = "BPQqLG9Cz30LE2qJsFRrujRmgn1hYrKJ0ndGaqq9BrwZibxefiPIaP1ZsOugnCcT7kKlIF"
     OSF_RESOURCE_ID = "dc745"  # replace with your actual project or component ID
     DESTINATION = os.getcwd()
-
-    # Call the download function
-    fetch_from_osf(OSF_TOKEN, OSF_RESOURCE_ID, DESTINATION)
