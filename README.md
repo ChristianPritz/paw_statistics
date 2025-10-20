@@ -72,9 +72,9 @@ Note: requirements.txt contains core analysis deps (numpy, pandas, scipy, matplo
 pip install statsmodels
 ```
 
-6) Download model used in examples
+6) Fetch the model and data from the OSF.io repository
 ```bash
-python download_model.py
+python fetch_from_osf.py
 ```
 
 7) Verify installation and GPU (if applicable)
