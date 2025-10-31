@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Paw geometry analysis suite
+
 Created on Fri May  3 09:33:04 2024
 
 @author: Christian Pritz
 """
-import os,cv2,copy,math,itertools,shutil, tempfile, zipfile,pickle
+import os,cv2,copy,math,itertools,shutil, tempfile,zipfile,pickle
 import numpy as np
 import pandas as pd
 import tkinter as tk
-from scipy import stats
-import pycircstat as circ
 import scipy.spatial.distance
 import matplotlib.pyplot as plt
+from scipy import stats
+from pycircstat2 import Circular
+from pycircstat2.hypothesis import watson_williams_test
+from pycircstat2.descriptive import circ_median
 from pathlib import Path
 from tkinter import filedialog
 from tkinter.filedialog import askopenfilename
@@ -22,7 +26,6 @@ from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
-from IPython import embed
 
 
 
@@ -298,7 +301,30 @@ class paw_statistics():
             X_test_out = X_test
             
         return X_train_out,X_test_out,y_train,y_test,idx
+    def circular_median(self,angles):
+        """
+        Compute the circular median of a 1D array of angles in radians.
+        Handles negative angles and angles > 2*pi, and even numbers of elements.
+        """
+        # Normalize to [0, 2*pi)
+        angles = np.mod(angles, 2*np.pi)
+        n = len(angles)
 
+        # Sort angles along the circle
+        sorted_angles = np.sort(angles)
+
+        if n % 2 == 1:
+            # Odd: pick the middle
+            return sorted_angles[n // 2]
+        else:
+            # Even: take midpoint along the shortest arc
+            a1 = sorted_angles[n//2 - 1]
+            a2 = sorted_angles[n//2]
+
+            # Shortest arc difference
+            diff = (a2 - a1) % (2*np.pi)
+            median = (a1 + diff/2) % (2*np.pi)
+            return median
     def clean_CI(self,data):
         data = np.asarray(data, dtype=np.float64)
         
@@ -891,7 +917,13 @@ class paw_statistics():
                 #angular randomization test
                 print("Doing the test #########################",j,compNum)
                 if watson_williams:
-                    pVal,f_stats = circ.tests.watson_williams(sample1, sample2,nan_policy='omit')
+                    
+                    print(sample1)
+                    # reconversion into degree because circ_median_ci errs on certain distribution when handed radians
+                    s1 = Circular(np.rad2deg(sample1),unit="degree")
+                    s2 = Circular(np.rad2deg(sample2),unit="degree")
+                    
+                    f_stats,pVal = watson_williams_test(circs=[s1, s2],verbose=True)
                 else:
                     pVal, observed_stat = self.angular_randomization_test(sample1, sample2,num_permutations=permuts)
                 
@@ -936,6 +968,8 @@ class paw_statistics():
         
         data_out = np.vstack((angle_number,angle_data))
         return result_df,data_out,labels
+    
+
     
     def multi_group_paw_mapping(self,df,paw_num,display_type,tag,folder,caxis=None):
         comps = np.unique(df.comparison_number)
@@ -2255,7 +2289,8 @@ class paw_statistics():
             if isCircular:
 
                 mean = np.rad2deg(scipy.stats.circmean(np.radians(y_vals)))
-                med = np.rad2deg(circ.median(np.radians(y_vals)))  
+                #med = np.rad2deg(circ.median(np.radians(y_vals)))
+                med = np.rad2deg(circ_median(alpha=np.radians(y_vals),return_average=True))  
                 
                 mean = ((mean + 180) % 360) - 180
                 med =  ((med + 180) % 360) - 180
@@ -4126,4 +4161,17 @@ class paw_statistics():
         plt.show()
         
         return fig,fig.axes        
-    
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
