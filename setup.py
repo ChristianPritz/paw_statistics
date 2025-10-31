@@ -3,10 +3,6 @@ from setuptools import setup, find_packages
 
 HERE = Path(__file__).parent
 
-# read long description from README
-long_description = (HERE / "README.md").read_text(encoding="utf-8") if (HERE / "README.md").exists() else ""
-
-# parse requirements.txt if present
 def parse_requirements(path="requirements.txt"):
     reqs = []
     p = HERE / path
@@ -20,23 +16,17 @@ def parse_requirements(path="requirements.txt"):
 
 setup(
     name="paw_statistics",
-    version="0.0.0",  # bump or use setuptools_scm (see notes below)
+    version="1.0.0",
     description="Python framework for analysis of static hind paw postures",
-    long_description=long_description,
+    long_description=(HERE / "README.md").read_text(encoding="utf-8") if (HERE / "README.md").exists() else "",
     long_description_content_type="text/markdown",
-    author="ChristianPritz",
-    packages=find_packages(exclude=("tests", "docs")),
+    author="Christian Pritz",
+    packages=find_packages(where="code"),   # 👈 search inside the 'code' folder
+    package_dir={"": "code"},               # 👈 tell setuptools that packages live in 'code'
     include_package_data=True,
     install_requires=parse_requirements(),
     extras_require={
-        "dev": [
-            "pytest>=7.0",
-            "pytest-cov",
-            "flake8",
-            "black",
-            "ruff",
-        ],
-        "all": [],
+        "dev": ["pytest>=7.0", "pytest-cov", "flake8", "black", "ruff"],
     },
     python_requires=">=3.8",
     classifiers=[
