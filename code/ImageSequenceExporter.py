@@ -16,7 +16,7 @@ import numpy as np
 from PIL import Image, ImageTk
 from pathlib import Path
 import matplotlib.pyplot as plt
-from paw_detector import paw_detector
+from paw_detector_torch import paw_detector
 from interactive_plot_UI import interactive_plot_UI
 from paw_statistics import paw_statistics
 from IPython import embed
@@ -57,19 +57,18 @@ class ImageSequenceExporter:
         self.export_side = None
 
         self.current_index = 0
+        self.threshold = 0.9
         self.tolerance = 0.1  # default
         self.counter = {}     # per-image crop counter
         self.detector_settings = detector_settings
         self.crpr = paw_cropper(detector_settings['model_path'],
-                                detector_settings['base_path'],
+                                detector_settings['device'],
                                 detector_settings["connect_logic"],
                                 detector_settings["keypoint_names"],
                                 threshold=detector_settings['threshold'],
                                 video=str(self.image_dir) if self.is_video else None,
                                 directory=str(self.image_dir if not self.is_video else self.output_dir),
                                 output_dir=str(self.output_dir))
-        
- 
         if paw_stats is not None:
             self.paw_stats = paw_statistics(None)
             self.paw_stats.load_data_zip(filename = paw_stats)
@@ -137,6 +136,12 @@ class ImageSequenceExporter:
         self.prediction_scale.pack(pady=5, fill="x")
         self.prediction_scale.set(0)
 
+        ttk.Label(self.metadata_frame, text="Detection Threshold (0–1):").pack(pady=2)
+        self.threshold_entry = ttk.Entry(self.metadata_frame)
+        self.threshold_entry.insert(0, str(self.threshold))
+        self.threshold_entry.pack(pady=2)
+        self.threshold_entry.bind("<Return>", self.on_threshold_change)        
+
         ttk.Label(self.metadata_frame, text="Crop Tolerance (0–1 or inf):").pack(pady=2)
         self.tolerance_entry = ttk.Entry(self.metadata_frame)
         self.tolerance_entry.insert(0, str(self.tolerance))
@@ -163,6 +168,24 @@ class ImageSequenceExporter:
         self.update_frame()
         self.root.mainloop()
 
+    def on_threshold_change(self, event=None):
+        """Update the detection threshold and refresh frame."""
+        try:
+            val = float(self.threshold_entry.get())
+            if 0.0 <= val <= 1.0:
+                self.threshold = val
+                # Update detector threshold
+                self.crpr.detector.threshold = self.threshold
+                self.update_frame()
+            else:
+                messagebox.showwarning("Invalid Input", "Enter a float between 0 and 1.")
+                self.threshold_entry.delete(0, tk.END)
+                self.threshold_entry.insert(0, str(self.threshold))
+        except ValueError:
+            messagebox.showwarning("Invalid Input", "Enter a valid float between 0 and 1.")
+            self.threshold_entry.delete(0, tk.END)
+            self.threshold_entry.insert(0, str(self.threshold))
+        
     def on_prediction_change(self, value):
         """Triggered when the prediction selection scale changes."""
         try:
@@ -249,7 +272,8 @@ class ImageSequenceExporter:
             #)
         else:
             pts, bboxes, crops, clss, orig_bboxes = self.crpr.live_cropper_img(
-                str(img_path), tolerance=self.tolerance
+                str(img_path), tolerance=self.tolerance, 
+                threshold = self.threshold
             )
         
         if bboxes is None or len(bboxes) == 0: # incase of no predictions.... 
@@ -631,12 +655,11 @@ class ImageSequenceExporter:
             # Append the dictionary to the DataFrame
         return dict_out
 
+#keypoint names, and keypoint logic not required anymore, remove in next update
 class paw_cropper:
-    def __init__(self, model_path, base_path, keypoint_logic, keypoint_names,
+    def __init__(self, model_path, device, keypoint_logic, keypoint_names,
                  video=None, directory=None, output_dir=None,threshold=0.9):
-        self.detector = paw_detector(model_path, base_path,threshold=threshold,
-                                     keypoint_logic=keypoint_logic,
-                                     keypoint_names=keypoint_names, visualize=False)
+        self.detector = paw_detector(model_path,device,threshold=threshold)
         self.directory = directory
         self.output_dir = output_dir or (directory + "/output")
         os.makedirs(self.output_dir, exist_ok=True)
@@ -654,19 +677,17 @@ class paw_cropper:
             return files, df
         return files, None
 
-    def live_cropper_img(self, image, tolerance=0.10):#
+    def live_cropper_img(self, image, tolerance=0.10,threshold=0.9):
         if isinstance(image,str):
             img = cv2.imread(image)
         else: 
             img = image
-        a, b, _,c = self.detector.detect_from_im(img)
+        bxs,kps,cls = self.detector.detect_4_UI(img, threshold=threshold)
         pts, boxes, imgs, classes,orig_bboxes = [], [], [], [],[]
-        for j in range(a.shape[0]):
-
-        
-            pt = a.numpy()[j,:,0:3].reshape([15,3]) # hardcoded size
-            bbox = np.reshape(b[j].tensor.numpy(), (4))
-            clss = c.numpy()[j]
+        for j in range(kps.shape[0]):
+            pt = kps[j,:,0:3].reshape([15,3]) # hardcoded size
+            bbox = bxs[j].reshape((4))
+            clss = cls[j]
             crop, coords = self.crop_image(img, bbox, tolerance)
             pts.append(pt)
             classes.append(clss)
