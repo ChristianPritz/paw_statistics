@@ -3,5 +3,5 @@ pandas>=2.1
 scipy>=1.11
 matplotlib>=3.8
 scikit-learn>=1.3
-pycircstat>=1.0
+pycircstat2>=1.0
 opencv-python-headless>=4.9
