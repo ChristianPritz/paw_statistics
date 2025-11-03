@@ -1,7 +1,8 @@
-numpy>=1.25
-pandas>=2.1
-scipy>=1.11
-matplotlib>=3.8
-scikit-learn>=1.3
-pycircstat2>=1.0
-opencv-python-headless>=4.9
+numpy
+requests
+pandas
+scipy
+matplotlib
+scikit-learn
+pycircstat2
+opencv-python-headless
