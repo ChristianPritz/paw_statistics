@@ -4,8 +4,8 @@ is a Python framework for analysis of static hind paw postures.
 
 ## Paw keypoint segmentation and Analysis Pipeline
 
-A complete, modular pipeline for **keypoint segmentation and analysis** built on Detectron2.
-This toolkit lets you train custom keypoint detection models, run inference, correct predictions with a simple UI, and run morphological and statistical analyses using common Python libraries.
+A complete, modular pipeline for keypoint segmentation and analysis built on Detectron2.
+This toolkit, implemented in PyTorch, enables you to run inference on images of mouse hindpaws, review and correct keypoint predictions through an intuitive user interface, and perform morphological and statistical analyses using common Python libraries. The models can be custom-trained within a Detectron2 environment.
 
 ---
 
@@ -16,6 +16,17 @@ This toolkit lets you train custom keypoint detection models, run inference, cor
 - Example Jupyter notebook for quick demonstration
 
 ---
+
+## Requirements
+
+Inference requires PyTorch and the packages listed in requirements.txt, including core Python dependencies such as numpy, pandas, scipy, matplotlib, scikit-learn, pycircstat2, and opencv-python-headless.
+
+Detectron2 **is not required for inference**, but custom training of the model does require a full Detectron2 installation.
+
+Use the virtual environment setup instructions above to keep dependencies isolated.
+
+---
+
 
 ## Installation (Pytorch + GPU or CPU)
 
@@ -79,6 +90,14 @@ python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); 
 ```
 
 ---
+## Known issues
+
+• The deployed model (model_torch.pt) performs less accurately than the Detectron2 version (model.pth) due to limitations in model tracing, resulting in:
+  – a higher false-negative rate
+  – increased keypoint and bounding box placement error
+• reduced accuracy when paws are closely spaced
+
+
 
 ## Optional Detectron2 installation
 If you want use the detectron2 model (model.pth) for custom keypoint segmentation please install detectron2 according to the installation page: https://detectron2.readthedocs.io/en/latest/tutorials/install.html 
@@ -95,11 +114,6 @@ The pth file can be custom trained using detectron2.
 | detectron2 build failed | Ensure PyTorch and CUDA versions match and a C/C++ build toolchain (nvcc, gcc/clang, build essentials) is available. Consider using a pre-built wheel for your platform. |
 | opencv import error | The repo uses opencv-python-headless; try `pip install opencv-python-headless` or `pip install --upgrade opencv-python-headless`. |
 | GPU not detected | Check NVIDIA drivers and CUDA toolkit; run `python -c "import torch; print(torch.cuda.is_available())"` |
-
----
-
-## Requirements
-The repository includes a `requirements.txt` with core Python dependencies (numpy, pandas, scipy, matplotlib, scikit-learn, pycircstat, opencv-python-headless). Use the virtual environment steps above to isolate installs.
 
 ---
 
