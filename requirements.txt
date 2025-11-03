@@ -4,5 +4,6 @@ pandas
 scipy
 matplotlib
 scikit-learn
+statsmodels
 pycircstat2
 opencv-python-headless
