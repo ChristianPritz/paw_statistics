@@ -92,10 +92,13 @@ python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); 
 ---
 ## Known issues
 
-• The deployed model (model_torch.pt) performs less accurately than the Detectron2 version (model.pth) due to limitations in model tracing, resulting in:
-  – a higher false-negative rate
-  – increased keypoint and bounding box placement error
-• reduced accuracy when paws are closely spaced
+* The deployed model (model_torch.pt) performs less accurately than the Detectron2 version (model.pth) due to limitations in model tracing, resulting in:
+  
+  - a higher false-negative rate
+  
+  - increased keypoint and bounding box placement error
+  
+* reduced keypoint placement accuracy when paws are closely spaced
 
 
 
