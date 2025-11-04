@@ -14,6 +14,7 @@ import tkinter as tk
 import scipy.spatial.distance
 import matplotlib.pyplot as plt
 from scipy import stats
+#import pycircstat as circ
 from pycircstat2 import Circular
 from pycircstat2.hypothesis import watson_williams_test
 from pycircstat2.descriptive import circ_median
@@ -26,7 +27,7 @@ from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
-
+from statsmodels.stats.multitest import multipletests
 
 
 class paw_statistics():
@@ -80,6 +81,7 @@ class paw_statistics():
         
         if not 'colors_ui' in settings:
             self.colors_ui = repeated_list = ['#5555ff'] * len(self.connect_logic)
+        
         else:  
             self.colors_ui = settings['colors_ui']
         
@@ -113,7 +115,7 @@ class paw_statistics():
         
 
         if not 'plt_prp' in settings:
-            self.default_plot_props()
+            self.plt_prp = self.default_plot_props()
         else: 
             self.plt_prp = settings['plt_prp']
         
@@ -744,7 +746,7 @@ class paw_statistics():
         return stars
     
     def test_all_angles(self,data_groups,design_matrix,watson_williams=True,
-                    tag='',folder='',sorting_method=None,clean_CI=False,angle_list=None,
+                    tag='',folder='',sorting_method=None,CI_90=False,angle_list=None,
                         side_mean=False,permuts=10000,common_std_method='pooled'):
       
         def wrap_degree(angles):
@@ -878,8 +880,8 @@ class paw_statistics():
         rows_with_all_nans = np.isnan(data).all(axis=1)
         angle_data = data[~rows_with_all_nans]
         angle_number = np.asarray(angle_number)
-        print("the shape of angle data is ",angle_data)
-        if clean_CI:                                                            # move this below 
+
+        if CI_90:                                                            
             angle_data = self.clean_CI_circ(angle_data,units="degrees")
             
         
@@ -906,24 +908,15 @@ class paw_statistics():
                 
                 
                 SD12,SD1,SD2 = common_std(sample1,sample2,method=common_std_method)
-                if SD12 > 2*np.max([SD1,SD2]):
-                    print('OUTLIER ##########################################')
-                    print("SDs are ",SD12,SD1,SD2)
-                    print("means are ",scipy.stats.circmean(sample2),scipy.stats.circmean(sample1))
-                
-                #Watson williams is good but we lack the sample size in some cases. 
-                #
-                
-                #angular randomization test
-                print("Doing the test #########################",j,compNum)
+
                 if watson_williams:
                     
-                    print(sample1)
+
                     # reconversion into degree because circ_median_ci errs on certain distribution when handed radians
                     s1 = Circular(np.rad2deg(sample1),unit="degree")
                     s2 = Circular(np.rad2deg(sample2),unit="degree")
                     
-                    f_stats,pVal = watson_williams_test(circs=[s1, s2],verbose=True)
+                    f_stats,pVal = watson_williams_test(circs=[s1, s2],verbose=False)
                 else:
                     pVal, observed_stat = self.angular_randomization_test(sample1, sample2,num_permutations=permuts)
                 
@@ -958,14 +951,10 @@ class paw_statistics():
         if len(result_df) > 1:
             result_df = self.adjust_pvalues(result_df, 'pVal')
 
-
         s_path = self.plot_path + '/' + folder +'/' + 'raw_satistics' + tag + '.csv'    
         
-        
         result_df.to_csv(s_path, index=False)
-        
 
-        
         data_out = np.vstack((angle_number,angle_data))
         return result_df,data_out,labels
     
@@ -1349,12 +1338,12 @@ class paw_statistics():
         return self.pca.transform(d)
         
     
-    def run_pca(self,input_data,label_col,n_components=3,colors=None,folder='',
+    def run_pca(self,input_data,labels,n_components=30,colors=None,folder='',
                 tag='',combos=None,numeric_labels=False,X_reduced=None):
-        if isinstance(label_col,str):
-            labels = self.label_db[label_col]
-        else:
-            labels = label_col
+        
+        if isinstance(labels,str):
+            labels = self.label_db[labels]
+
         
         
         #z-normalize the columns ------------------------------------------
@@ -1369,7 +1358,7 @@ class paw_statistics():
         
         #creating label colors --------------------------------------------
         categories = np.unique(labels)
-        print('categories',categories)
+
  
         
         #do the pca -------------------------------------------------------
@@ -1402,15 +1391,11 @@ class paw_statistics():
             
             axes[i].plot(self.pca.components_[i,:])
             axes[i].set_title(f'PC number {i+1}')
-        plt.tight_layout()
-         
-         # Show the plot
+
+        # Show the plot
         plt.show()
         name = 'PCA-PCs' + tag
         self.save_plot(fig,name, folder)
-        
-        
-       
         
         self.pca_scatter(categories,labels,n_components,colors=colors,
                          X_reduced=None,numeric_labels=numeric_labels,
@@ -1448,11 +1433,11 @@ class paw_statistics():
             
         else:
             for idx,i in enumerate(labels):
-                print(categories,i)
+
                 itemindex = np.where(categories == i)
-                #print(label_colors,'itemindex:',itemindex,'colors',colors)
+
                 label_colors =  np.append(label_colors,colors[itemindex,:].reshape(1,3),axis=0)
-                #print("IS NOT NUMERIC ------------------------------------")
+
 
         if isinstance(X_reduced,type(None)):
             X_reduced = self.X_reduced
@@ -1514,25 +1499,19 @@ class paw_statistics():
                     )
                 labelX = "PC " + str(i[0]+1) + ' (' + str(np.round(self.pca.explained_variance_ratio_[i[0]]*100,2))+'% of variance)' 
                 ax.set_xlabel(labelX)
-                #ax.xaxis.set_ticklabels([])
+
                 labelY = "PC " + str(i[1]+1) + ' (' + str(np.round(self.pca.explained_variance_ratio_[i[1]]*100,2))+'% of variance)' 
                 ax.set_ylabel(labelY)
-                #ax.yaxis.set_ticklabels([])
+
                 if not numeric_labels:
                     gm = plot_cm(ax,X_reduced[:, i[0]],X_reduced[:, i[1]],labels,colors)
-                #    if update_GM:
-                #        self.pc_group_centers[[i,i+1],:] = gm   
+
                 
                 self.style_plot(plt, ax,plot_props=plot_props)
                 plt.show()
                 self.save_plot(fig,'PCA-component-scatter'+ '-' + str(i[0]+1) + '-vs-'+ str(i[1]+1)+tag, folder)
         self.plot_colored_labels(categories, colors, folder=folder,tag=tag)
-                
-                
-    
-    
-    
-    
+     
     
     
     def test_influential_points(self, X, y, fraction=0.1,transformY=None,normY=False):
@@ -2275,7 +2254,7 @@ class paw_statistics():
 
                 kde = scipy.stats.gaussian_kde(group_vals)
                 density_values = kde(group_vals)  # Get the density estimate for each value
-                #print('density is',density_values)
+
                 density_values = (density_values-np.min(density_values))/(
                                     np.max(density_values)-np.min(density_values))
                                     
@@ -2324,10 +2303,10 @@ class paw_statistics():
         # Customize the plot
         if not plot_props['ylim'] == 'AUTO' and len(plot_props['ylim']) > 0:
             ax.set_ylim(plot_props['ylim'])
-            #print('set ylim',plot_props['ylim'])
+
         if not plot_props['xlim'] == 'AUTO' and len(plot_props['xlim']) > 0:
             ax.set_xlim(plot_props['xlim'])
-            #print('set xlim',plot_props['xlim'])
+
         else:
             ax.set_xlim(0.5, num_groups + 0.5)
             
@@ -2553,8 +2532,7 @@ class paw_statistics():
             }
     
         fig, ax = plt.subplots(dpi=plot_props["dpi"], figsize=plot_props["figsize"])
-        print('####################### [CV DATA] #######################')
-        print(cv_data)
+
         # ---- Process cross-validation data ----
         if cv_data is not None and len(cv_data) > 0:
             cv_preds, cv_gts = [], []
@@ -2563,16 +2541,16 @@ class paw_statistics():
                 cv_gts.extend(gt)
             cv_preds, cv_gts = np.array(cv_preds), np.array(cv_gts)
     
-            print('###################[SHAPES]###########################')
+
             
             unique_gts = np.unique(cv_gts)
-            print(unique_gts)
+
             for val in unique_gts:
                 
                 preds_at_val = cv_preds[cv_gts == val]
-                print(val,preds_at_val.size)
+
                 if preds_at_val.size > 0:
-                    print("plotting",val,np.mean(preds_at_val))
+
                     preds_at_val[np.isnan(preds_at_val)] = 0
                     ax.violinplot(preds_at_val[np.invert(np.isnan(preds_at_val))],
                                   positions=[val], widths=widths,
@@ -2741,7 +2719,7 @@ class paw_statistics():
     
         if 'x_scale' in plot_props:
             ax.set_xscale(plot_props['x_scale'])
-            print('ADSfalfjlasdfj##############################################')
+
     
         if 'y_scale' in plot_props:
             ax.set_yscale(plot_props['y_scale'])
@@ -2810,7 +2788,7 @@ class paw_statistics():
         shp = img.shape
         m = np.max(img)
         blank = np.tile(m,(round(shp[0]*0.3),shp[1],shp[2]))
-        print('blank shape',blank.shape,img.shape)
+
         img = np.vstack((img,blank))
   
         text = '\n'.join([f"{col}: {val}" for col, val in line.items()])
@@ -2820,7 +2798,7 @@ class paw_statistics():
         ax.imshow(img)
         
         self.visualize_paws(pts, 1,ax_obj = [fig,ax])
-        print(bxs.shape)
+
         
         if boxType == 'absolute':
         
@@ -2888,8 +2866,12 @@ class paw_statistics():
         else:
             num = 1
             print('axes provided: number of paws plotted is set to 1')
-
-            
+        if paw_style is None:
+            paw_style = {'xmargin':0.03,
+                         'ymargin':0.03,
+                         'aspect':'equal',
+                         'axes':'off'}
+  
         for i in range(num):
             if redefine:
                 ax_obj = plt.subplots(dpi=600)
@@ -2898,7 +2880,7 @@ class paw_statistics():
             if title :
                 title = self.label_db.iloc[i].image_name + ' ' + str(i) 
                 ax_obj[1].set_title(title)
-            print('-------------------------------')
+
             
             point_colors = []
             searchMat = np.asarray(self.connect_logic)[:,0]
@@ -2910,8 +2892,7 @@ class paw_statistics():
              
                 else:
                     a = np.where(searchMat == j)
-                    
-                    #print('a is',a[0][0])
+
                    
                     if len(a[0]) > 0:
                         point_colors.append(self.colors[int(a[0][0])])
@@ -2921,7 +2902,7 @@ class paw_statistics():
 
                         
             for idx in range(pts[i,:,:].shape[0]):
-                #print(i)
+
                 ax_obj[1].scatter(pts[i,idx,0],pts[i,idx,1],
                            color=point_colors[idx],s=65,zorder=2,
                            edgecolors=[0.2,0.2,0.2,1],alpha=alpha)
@@ -2952,7 +2933,7 @@ class paw_statistics():
             
             if tag != '':
                 name = 'PAW-' + str(i) + tag
-                print(name)
+
                 self.save_plot(ax_obj,name,folder)
         return ax_obj
            
@@ -3035,7 +3016,7 @@ class paw_statistics():
     def find_colors(self,u_groups,groups,base_colors):
         colors = []
         for i in groups:
-            print(i,int(np.where(u_groups==i)[0]))
+
             colors.append(base_colors[int(np.where(u_groups==i)[0]),:])
         return np.asarray(colors) 
                 
@@ -3162,7 +3143,7 @@ class paw_statistics():
             ind1 = np.where(np.all(all_edges[:,0] == i, axis=1))[0]
             ind2 = np.where(np.all(all_edges[:,1] == i, axis=1))[0]
             edge_score[idx] = np.sum(counts.values[ind1]) + np.sum(counts.values[ind2])
-            print(edge_score[idx])
+
         
         # this is for the color score 
         if caxis is None:
@@ -3215,7 +3196,7 @@ class paw_statistics():
         ptX = stX
         for i in np.arange(0,100):
             ax.plot([ptX,ptX+l],[stY,stY],color=color_gradient[i,:],linewidth=8,zorder=1)
-            #print(ptX+l-ptX,i)
+
             ptX += l
             
         if caxis is None:
@@ -3238,7 +3219,7 @@ class paw_statistics():
             ncorr = 1
             
         # check the number of paws to plot
-        print('angles are',angles.shape)
+
         
         if hasattr(self, 'paw_plot_settings'):
             offset = self.paw_plot_settings['offset']
@@ -3247,7 +3228,7 @@ class paw_statistics():
 
         
         if angles.shape[0] == 1:
-            print('')
+
             angs = angles[:,0,self.interesting_idcs]
             var = np.full(angs.shape,0)
         else: 
@@ -3308,7 +3289,7 @@ class paw_statistics():
         for idx,i in enumerate(radii_2):
             tot_l = i+err_add
             line_lengths.append(tot_l)
-            print('percents: ', [i/tot_l*100,err_add/2/tot_l*100,err_add/2/tot_l*100,])
+
             line_segment_percentages.append([i/tot_l*100,err_add/2/tot_l*100,err_add/2/tot_l*100,])
 
         
@@ -3326,7 +3307,7 @@ class paw_statistics():
         
 
         #plot 
-        #print('')
+
         radii_err = np.asarray(radii) + var*err_leng_degree;
         
         fig, ax = plt.subplots(dpi=600,figsize=(6,6))
@@ -3345,7 +3326,7 @@ class paw_statistics():
         ax.text(0.25, -0.5, f'{half_n}', rotation=0, ha='left', va='center',fontsize=fontsize)
         ax.text(0.25, -1, f'{max_n}', rotation=0, ha='left', va='center',fontsize=fontsize)
         degree_r = line_angles[-1]-90
-        #print('attPs',attPs)
+
         attP = attPs[1];
         attP2 = attPs[2];
         ax.text(attP[0]+.2,attP[1]+.2, f'{err_ang} °', rotation=degree_r, ha='left', va='top',fontsize=fontsize)
@@ -3353,7 +3334,7 @@ class paw_statistics():
         
         #Drawing paw indicators
         if not isinstance(headlines,type(None)): 
-            print('in headlines')
+
             names = ['i','ii','iii','iv','v']
             heights = [4,4.3,4.3,4.3,4]
             for idx,i in enumerate(headlines):
@@ -3418,8 +3399,7 @@ class paw_statistics():
               
                 # Initialize start point of segment
                 seg_start = np.array(start)
-                #print('------------------------------------------------------')
-                # Loop through each segment
+
                 
                 cumulative_lengths = np.flip(cumulative_lengths)
                 seg_colors.reverse()
@@ -3429,8 +3409,7 @@ class paw_statistics():
                     
                     # Calculate endpoint of the segment
                     seg_end = seg_start + seg_length * np.array([np.cos(angle_rad), np.sin(angle_rad)])
-                    #print('start',seg_start,'end',seg_end,'seg_length',seg_length)
-                    # Plot the segment with specified color
+
                     if counter == 0:
                         zrd = 2
                     else:
@@ -3441,9 +3420,7 @@ class paw_statistics():
                         endpoints.append(seg_end[0])
                     s_counter += 1        
                     
-                    # Update start point for the next segment
-                    #seg_start = seg_end
-                
+
             else:
                 # Plot the line with thicker width and rounded ends
                 ax.plot([start[0], end_x], [start[1], end_y], linewidth=3, solid_capstyle='round')
@@ -3538,7 +3515,7 @@ class paw_statistics():
             dict_out = []
             pts_out = np.zeros((len(idcs),self.pts.shape[1],3))
             bbox_out = np.zeros((len(idcs),4))
-            print(len(idcs),pts_out.shape)
+
             for i in idcs:
                 new_row = {'genotype': self.label_db.genotype[i],
                            'gender': self.label_db.gender[i],
@@ -3553,7 +3530,7 @@ class paw_statistics():
                            'paw_number':counter,} 
                 
                 # Append the dictionary to the DataFrame
-                print('pts',pts_out[counter,:,0:2],'shape',pts_out[counter,:,0:2].shape)
+
                 
                 pts_out[counter,:,0:2] = self.pts[i,:,0:2]
                 bbox_out[counter,:] = self.boxes[i,:]
@@ -3627,8 +3604,7 @@ class paw_statistics():
             # Convert the cell array to a format that can be saved in a .mat file
         
         #delete empty fields
-        print('pts.shape',pts.shape,len(pts))
-        print('cell_arrau',len(cell_array),len(cell_array[0]))
+
         for j in cell_array:
             for i in np.arange(len(pts)+1,7)[::-1]:
                 j.pop(i)
@@ -3675,7 +3651,7 @@ class paw_statistics():
         return data,labels,idcs
     
     def concat_labels(self,fuse_obj):
-        print(fuse_obj)
+
         if isinstance(fuse_obj, dict):
             fuse_obj = pd.DataFrame(data=fuse_obj,index=[0])
         self.label_db = pd.concat([self.label_db, fuse_obj], ignore_index=True, sort=False)
@@ -3770,12 +3746,12 @@ class paw_statistics():
         if hasattr(self,'plot_format'):
             del self.plot_format
         
-        self.plt_prp = {'linewidth':2.5,
+        plt_prp = {'linewidth':2.5,
                         'fontweight':'normal',
-                        'fontweight_ax':'bold',
+                        'fontweight_ax':'normal',
                         'fontsize':22,
                         'fontsize_ax':24,
-                        'fontname':'Abyssinica SIL',#'DejaVu Sans Mono',
+                        'fontname':'sans-serif',#'Abyssinica SIL',#'DejaVu Sans Mono',
                         'legend':'off',
                         'top_ticks':'on',
                         'spine_right':True,
@@ -3788,6 +3764,8 @@ class paw_statistics():
                         'tick_length':6,
                         'xtick_format':[0,22,'center','top'],
                         'ytick_format':[0,22,'right','center']}
+        
+        return plt_prp
             
     
     def reset_all_data(self):
@@ -3871,19 +3849,16 @@ class paw_statistics():
         root = tk.Tk()
         root.withdraw()  # Hide the main tkinter window
         filenames = filedialog.askopenfilename(filetypes=[("Pickle files", "*.mat")],multiple=True)
-        print(filenames)
+
         for i in filenames:
             tf = scipy.io.loadmat(i)
             num_instances = len(tf['varList'][0])
             for k in range(1,num_instances):
-                
-                #print(tf['varList'][0][0],tf['varList'][1][0],tf['varList'][2][0],tf['varList'][3][0],tf['varList'][4][0],tf['varList'][5][0],tf['varList'][6][0])
+         
                 bx = tf['varList'][2][k];
-                #print('num is:', k)
-               # print('shapes are:',tf['varList'][0][k].shape,tf['varList'][2][k].shape)
+
                 a = np.hstack((tf['varList'][0][k],bx.reshape((bx.shape[1],bx.shape[0]))))
-                #print(self.pts.shape)
-                #print(a.shape)
+
                 b = tf['varList'][1][k]
                 
                 self.add_data(a.reshape((1,self.num_keypoints,3)),b.reshape((1,1,4)))
@@ -3915,8 +3890,6 @@ class paw_statistics():
         meta_data = [];
 
         for k in range(1,num_instances):
-            print(tf['varList'][0][0],tf['varList'][1][0],tf['varList'][2][0],tf['varList'][3][0],tf['varList'][4][0],tf['varList'][5][0],tf['varList'][6][0])
-            print('num is:', k)
 
             #bx = bx.reshape((bx.shape[1],bx.shape[0]))
             
@@ -4019,7 +3992,7 @@ class paw_statistics():
                 #saving the data 
                 
                 if len(all_bxs.shape) > 2:
-                    #print('darn')
+
                     all_bxs = all_bxs.reshape((all_bxs.shape[0],all_bxs.shape[2]))
 
                 self.add_data(all_pts, all_bxs)
@@ -4080,10 +4053,9 @@ class paw_statistics():
         def ensure_column_exists(df, column_name, default_value='not stated'):
             if column_name not in df.columns:
                 df[column_name] = default_value
-                #print(f"Column '{column_name}' added with default value: {default_value}")
+
             return df
-        
-        #print('row is', df)
+
         ensure_column_exists(df, "genotype")
         ensure_column_exists(df, "gender")
         ensure_column_exists(df, "side")
@@ -4121,8 +4093,13 @@ class paw_statistics():
 
     
     def save_plot(self,axObj,name,folder):
+        if name is None or name  == '':
+            return 
+        if folder is None or folder == '':
+            return 
+        
         s_path = self.plot_path + '/' + folder +'/'
-        print(s_path)
+
         if not os.path.exists(s_path):
             os.mkdir(s_path)
             
@@ -4145,7 +4122,7 @@ class paw_statistics():
         
     def load_plot(self,name,folder):
         s_path = self.plot_path + '/' + folder +'/'
-        print(s_path)
+
         if not os.path.exists(s_path):
             os.mkdir(s_path)
             
