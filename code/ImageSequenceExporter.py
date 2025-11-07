@@ -57,8 +57,8 @@ class ImageSequenceExporter:
         self.export_side = None
 
         self.current_index = 0
-        self.threshold = 0.9
-        self.tolerance = 0.1  # default
+        self.threshold = 0.7
+        self.tolerance = 0.25  # default
         self.counter = {}     # per-image crop counter
         self.detector_settings = detector_settings
         self.crpr = paw_cropper(detector_settings['model_path'],

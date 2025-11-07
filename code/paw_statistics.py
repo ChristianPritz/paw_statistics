@@ -28,6 +28,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
 from statsmodels.stats.multitest import multipletests
+from IPython import embed
 
 
 class paw_statistics():
@@ -105,7 +106,7 @@ class paw_statistics():
                                       ([4,5],[8,9]),
                                       ([8,9],[12,13]),
                                       ([12,13],[16,17])]
-        
+               
         else :
             self.intresting_angles = settings['intresting_angles']
         
@@ -126,6 +127,15 @@ class paw_statistics():
             self.angle_range = 'pi'
         else: 
             self.angle_range = settings['angle_range']
+        
+        #hardcoded properties -------------------------------------------------
+        self.named_angles = [81,75,88,109,126,4,21,38,54,69,87,108,125,
+                             138,83,95,115,131,142]
+        self.angle_names = ['TOA','I-II','II-III','III-IV','IV-V','root i',
+                            'root ii','rooti ii','root iv','root v',
+                            'digit ii','digit iii','digit iv','digit v',
+                            'base i','base ii','base iii','base iv','base v']
+        self.angle_list_all = np.arange(0,153)
         
         
 
@@ -303,31 +313,8 @@ class paw_statistics():
             X_test_out = X_test
             
         return X_train_out,X_test_out,y_train,y_test,idx
-    def circular_median(self,angles):
-        """
-        Compute the circular median of a 1D array of angles in radians.
-        Handles negative angles and angles > 2*pi, and even numbers of elements.
-        """
-        # Normalize to [0, 2*pi)
-        angles = np.mod(angles, 2*np.pi)
-        n = len(angles)
 
-        # Sort angles along the circle
-        sorted_angles = np.sort(angles)
-
-        if n % 2 == 1:
-            # Odd: pick the middle
-            return sorted_angles[n // 2]
-        else:
-            # Even: take midpoint along the shortest arc
-            a1 = sorted_angles[n//2 - 1]
-            a2 = sorted_angles[n//2]
-
-            # Shortest arc difference
-            diff = (a2 - a1) % (2*np.pi)
-            median = (a1 + diff/2) % (2*np.pi)
-            return median
-    def clean_CI(self,data):
+    def clean_CI(self,data, high=95, low=5):
         data = np.asarray(data, dtype=np.float64)
         
         # Create a copy of the data to avoid modifying the original array
@@ -340,8 +327,8 @@ class paw_statistics():
             col_non_nan = col_data[~np.isnan(col_data)]
             
             # Calculate the 5th and 95th percentiles
-            lower_bound = np.percentile(col_non_nan, 5)
-            upper_bound = np.percentile(col_non_nan, 95)
+            lower_bound = np.percentile(col_non_nan, low)
+            upper_bound = np.percentile(col_non_nan, high)
             
             # Mask out values outside the bounds
             mask = (col_data < lower_bound) | (col_data > upper_bound)
@@ -458,7 +445,7 @@ class paw_statistics():
         individuals = self.label_db.animal_id[indices].to_numpy()
         
         if side_mean:
-            print('AVERAGING LEFT AND RIGHT PAWS!')
+            print('[WARNGING] Averaging left and right paws!')
             u_inds = np.unique(individuals)
             nu_angles = np.tile(np.nan,(u_inds.size,angles.shape[1],angles.shape[2]))
             nu_pts = np.tile(np.nan,(u_inds.size,pts.shape[1],pts.shape[2]))
@@ -477,7 +464,7 @@ class paw_statistics():
     
     def all_angles(self,pts=None):
         if isinstance(pts, type(None)):
-            pts = self.pts_2_pca(self.pts,nth_point=self.mid_point,generic_left=True,flatten=False)
+            pts = self.pts_2_pca(self.pts,nth_point=self.mid_point,generic_right=True,flatten=False)
 
         self.angles = np.empty((0,1,len(self.ang_comps)),dtype=float)
 
@@ -502,18 +489,9 @@ class paw_statistics():
                 mD = np.mean(dists[[0,3,7,11,15]])
                 #mD = np.max(dists)
                 dists = dists/mD
-            print('dists',dists.shape)
-            print('p_dists',self.p_dists.shape)
             self.p_dists = np.append(self.p_dists,dists.reshape((1,len(dists))),axis=0)
         
-    
-    
-    
-    def matrixdot(self,v1,v2):
-        return np.sum(np.multiply(v1,v2),axis=1)
-    def matrixlength(self,v):
-        return np.sqrt(self.matrixdot(v,v))
-    
+   
     def matrixangle(self,array1, array2):
         """
         Calculate the angle between corresponding vectors in two n x 2 numpy arrays.
@@ -554,21 +532,6 @@ class paw_statistics():
         
         return angles
  
-    
-           
-    def dotproduct(self,v1, v2):
-      return sum((a*b) for a, b in zip(v1, v2))
-    
-    def length(self,v):
-      return math.sqrt(self.dotproduct(v, v))
-    
-    def angle(self,v1, v2):
-      return math.acos(self.dotproduct(v1, v2) / (self.length(v1) * self.length(v2)))
-    def getVector(self,idcs,pts):
-        return pts[idcs[1]]-pts[idcs[0]];
-        
-    
-
     def matrix_pairwise_angles(self,points,cmbnts):
 
         v1 = np.full((int(len(cmbnts)),2),np.nan)
@@ -589,32 +552,35 @@ class paw_statistics():
             translated_coords = coords - translation_vector
            
             #Rotate coordinates so that the vector from point 1 to the nth is parallel with the x-axis
-            vector = translated_coords[nth_point]  # Vector from point 1 to point n
+            vector = translated_coords[nth_point]  # Vector from 0 to the coordinates of point n
             angle = np.arctan2(vector[1], vector[0])
             rotation_matrix = np.array([
                 [np.cos(-angle), -np.sin(-angle)],
                 [np.sin(-angle),  np.cos(-angle)]
             ])
             rotated_coords = np.dot(translated_coords, rotation_matrix.T)
-           
+
             #Scale coordinates so that the distance between point 1 and the nth point is 1
             if scaling:
-                distance = np.linalg.norm(rotated_coords[9])
+                distance = np.linalg.norm(rotated_coords[nth_point])
                 scaled_coords = rotated_coords / distance
                 transformed_sets.append(scaled_coords)
             else: 
                 transformed_sets.append(rotated_coords)
                 
         return np.array(transformed_sets)
-        
-    def pts_2_pca(self,pts,nth_point=8,generic_left=False,flatten=True,
+    
+
+    
+    def pts_2_pca(self,pts,nth_point=6,generic_right=True,flatten=True,
                   scaling=True,mirror_type='mid_line',re_zero_type='mid_line'):
-        #print("Converting")
+        
+        # nth_point=6 is because 
         pts = pts[:,:,[0,1]]
         pca_pts = self.transform_coordinates(pts, nth_point,scaling=scaling)
         
-        if generic_left:
-            #print('GENERIC LEFT')
+        if generic_right:
+
             for idx,i in enumerate(self.label_db['side']):
                 if i == 'right':
                     #print('flipped')
@@ -960,14 +926,16 @@ class paw_statistics():
     
 
     
-    def multi_group_paw_mapping(self,df,paw_num,display_type,tag,folder,caxis=None):
+    def multi_group_paw_mapping(self,df,paw_num,tag='',
+                                folder=None,caxis=None):
         comps = np.unique(df.comparison_number)
         for i in comps:
             print("The comparisons are ",i,'----------------------------')
             idx = df.comparison_number==i
             df_i = df[idx]
-            tagX = tag + '-' + str(i) + '-'
-            self.map_significance_on_paw(df_i,paw_num,tag=tagX,folder=folder,display=display_type,caxis=caxis)
+            tag_i = tag + '-' + str(i) + '-'
+            display_type = 'summed_angles' #legacy: remove after revisions 
+            self.map_significance_on_paw(df_i,paw_num,tag=tag_i,folder=folder,display=display_type,caxis=caxis)
     
     
     def plot_n_angles(self,angular_indices,angular_data,labels,colors,
@@ -976,6 +944,16 @@ class paw_statistics():
                       marker_size=50,spread=0.5,subset=None):
         
         angle_data = angular_data[1:angular_data.shape[0],:]
+        
+        
+        #instant
+        if plot_props is None:
+            plot_props = self.default_plot_props()
+            plot_props["xlim"] = 'AUTO'
+            plot_props["ylim"] = 'AUTO'
+            plot_props["xlabel"] = ''
+            plot_props["ylabel"] = ''
+        
         for ct,i in enumerate(angular_indices):
             idx = np.where(angular_data[0,:]==i)
             
@@ -983,8 +961,10 @@ class paw_statistics():
             plot_data = angle_data[:,idx]
             plot_data = plot_data.reshape((plot_data.shape[0],plot_data.shape[2]))
             if ylims is not None:
-                print(idx)
                 plot_props['ylim'] = ylims[ct]
+            else:
+                plot_props['ylim'] = 'AUTO'
+                 
             if subset is not None:
                 plot_data = plot_data[:,subset]
                 plabels = [labels[i] for i in subset]
@@ -1000,7 +980,7 @@ class paw_statistics():
                                              bins=bins,marker_size=marker_size,
                                              spread=spread)
             
-            print(folder)
+
             self.save_plot(axObj[0],"Group_scatter"+tag+'_'+str(i),folder)
     
     
@@ -1049,7 +1029,11 @@ class paw_statistics():
 
 
 
-    def reshuffle_pvs(self,df,angles):
+    def reshuffle_pvs(self,df,angles=None):
+        
+        if angles is None:
+            angles = self.angle_list_all 
+        
         killDx = np.isin(df.angle_number,angles)
        
         angs = df.angle_number.iloc[killDx]
@@ -1478,6 +1462,7 @@ class paw_statistics():
                 
                 self.save_plot(fig,'PCA-component-scatter'+ '-' + str(i+1)+'-vs-'+ str(i+1) + tag, folder )
         else :
+            print('[WARNING] Plotting combos will not update the group means.\n Do not plot group specific poses with combos enabled')
             for i in combos:
                 fig,ax = plt.subplots(dpi=600,figsize=(6,6))
                 if numeric_labels:
@@ -1924,13 +1909,20 @@ class paw_statistics():
     def plot_pvalue_heatmap(self,p_values, x_labels=None, y_labels=None,tag='',
                             folder='',aspect_ratio=[10,6]):
         """
-        Plots a heatmap of p-values with log10 scaling using Matplotlib.
+        Plots a heatmap of p-values with log10 scaling
     
         Parameters:
         - p_values (numpy.ndarray): A 2D array of p-values.
         - x_labels (list, optional): Labels for the columns (X-axis).
         - y_labels (list, optional): Labels for the rows (Y-axis).
         """
+        if y_labels is not None:
+            if y_labels == 'auto':
+                if p_values.shape[0] == len(self.named_angles):
+                    y_labels = self.angle_names
+                elif p_values.shape[0] == 153:
+                    y_labels = [] 
+        
         xlim = [-0.5, p_values.shape[1]-0.5]
         ylim = [-0.5, p_values.shape[0]-0.5]
         plot_props = {'top_ticks':'on',
@@ -1979,6 +1971,7 @@ class paw_statistics():
     
         if not isinstance(x_labels,type(None)):
             print(x_labels)
+            
             ax.set_xticklabels(x_labels, rotation=45, ha="right", fontsize=10)
         if not isinstance(y_labels,type(None)):
             ax.set_yticklabels(y_labels, fontsize=10)
@@ -2203,7 +2196,7 @@ class paw_statistics():
         num_groups = len(groups)
         if isinstance(figsize, type(None)):
             figsize = (10,6)
-            print('No size defined')
+ 
         
         # Create figure
         #print('figsize',figsize)
@@ -2230,7 +2223,7 @@ class paw_statistics():
                 x_vals = []
                 y_vals = []
                 bin_lengths = (counts-np.min(counts))/(np.max(counts)-np.min(counts))*spread
-                print(counts.size,bin_lengths.size,counts.size==bin_lengths.size)
+
                 
                 unique_indices = np.unique(bin_indices)
 
@@ -3117,7 +3110,8 @@ class paw_statistics():
     
     
     def map_significance_on_paw(self,df,paw_num,tag='',folder='',
-                                color_map="RdBu",display='significant_angles',caxis=None):
+                                color_map="RdBu",display='significant_angles',
+                                caxis=None,is_revs=True):
         # check the statistics
         df = df[df['indicator'] != 'ns.']
         
@@ -3153,10 +3147,16 @@ class paw_statistics():
         
         norm_score = norm_score.reshape((norm_score.shape[0]))
         
+        # This turns summed degrees in revolutions 
+        if is_revs: 
+            norm_score /=360
+
+        
+        
         fig,ax = plt.subplots(dpi=600)
         ax.set_aspect('equal', adjustable='box')  
         
-        pts = self.pts_2_pca(self.pts,nth_point=6,
+        pts = self.pts_2_pca(self.pts,nth_point=6,generic_right=True,
                              re_zero_type='mid_line',mirror_type='mid_line',
                              flatten=False)
         
@@ -3205,8 +3205,11 @@ class paw_statistics():
         else:
            the_min = caxis[0]
            the_max = caxis[1]
-        ax.text(stX - 75*l,stY,str(np.uint32(the_min)),fontsize=16,verticalalignment='center',rotation=270)
-        ax.text(ptX +10*l ,stY,str(np.uint32(the_max)),fontsize=16,verticalalignment='center',rotation=270)
+        
+
+        
+        ax.text(stX - 75*l,stY,str(np.float64(the_min)),fontsize=16,verticalalignment='center',rotation=270)
+        ax.text(ptX +10*l ,stY,str(np.float64(the_max)),fontsize=16,verticalalignment='center',rotation=270)
         
         self.save_plot(fig,'significance_map'+tag,folder)
    
