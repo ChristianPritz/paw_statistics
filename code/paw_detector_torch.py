@@ -9,7 +9,7 @@ import cv2
 import torch
 import numpy as np
 from torchvision.ops import nms
-from IPython import embed
+
 
 
 class paw_detector:
