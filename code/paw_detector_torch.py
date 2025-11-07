@@ -116,7 +116,7 @@ class paw_detector:
         if threshold is None:
             threshold = self.threshold
         results = self.detect(img_bgr)
-        return results["boxes"],results["keypoints"],results["classes"]
+        return results["boxes"],results["keypoints"],results["classes"],results["prob"]
     
     def detect_batch(self, image_list):
         """

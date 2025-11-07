@@ -28,7 +28,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
 from statsmodels.stats.multitest import multipletests
-from IPython import embed
 
 
 class paw_statistics():

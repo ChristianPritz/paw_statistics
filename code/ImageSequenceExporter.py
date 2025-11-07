@@ -6,8 +6,7 @@ Created on Tue Jul  1 14:14:46 2025
 @author: Christian Pritz
 """
 
-import glob, copy,scipy
-import cv2, os, posixpath
+import glob, copy,scipy,math,cv2,os,posixpath
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from tkinter import ttk
@@ -19,7 +18,7 @@ import matplotlib.pyplot as plt
 from paw_detector_torch import paw_detector
 from interactive_plot_UI import interactive_plot_UI
 from paw_statistics import paw_statistics
-from IPython import embed
+
 
 
 class ImageSequenceExporter:
@@ -146,6 +145,8 @@ class ImageSequenceExporter:
         self.tolerance_entry = ttk.Entry(self.metadata_frame)
         self.tolerance_entry.insert(0, str(self.tolerance))
         self.tolerance_entry.pack(pady=2)
+        ttk.Button(self.metadata_frame, text="Fix predictions", command=self.fix_predictions).pack(pady=5)
+
 
         ttk.Label(self.metadata_frame, text="Metadata:").pack(pady=5)
         self.metadata_inputs = {}
@@ -234,26 +235,30 @@ class ImageSequenceExporter:
             self.canvas.image = imgtk
         
     
-    def update_frame(self):
+    def update_frame(self,override=None):
 
         
         # --- Load image or video frame depending on mode ---
-        if self.is_video:
-    
-            self.video_capture.set(cv2.CAP_PROP_POS_FRAMES, self.current_index)
-            ret, frame = self.video_capture.read()
-            if not ret:
-                messagebox.showerror("Error", f"Cannot read frame {self.current_index}")
-                return
-            img_name = f"frame_{self.current_index:05d}.png"
+        if override is None:
+            if self.is_video:
+        
+                self.video_capture.set(cv2.CAP_PROP_POS_FRAMES, self.current_index)
+                ret, frame = self.video_capture.read()
+                if not ret:
+                    messagebox.showerror("Error", f"Cannot read frame {self.current_index}")
+                    return
+                img_name = f"frame_{self.current_index:05d}.png"
+            else:
+                img_path = self.image_files[self.current_index]
+                frame = cv2.imread(str(img_path))
+                img_name = Path(img_path).name
+                if frame is None:
+                    messagebox.showerror("Error", f"Cannot load {img_path}")
+                    return
+            self.current_frame = frame
         else:
-            img_path = self.image_files[self.current_index]
-            frame = cv2.imread(str(img_path))
-            img_name = Path(img_path).name
-            if frame is None:
-                messagebox.showerror("Error", f"Cannot load {img_path}")
-                return
-        self.current_frame = frame
+            frame = override
+        
         self.update_nav_controls()
         # --- Handle tolerance input ---
         tol = self.tolerance_entry.get().lower()
@@ -264,15 +269,21 @@ class ImageSequenceExporter:
             return
 
         # --- Run detection ---
-        if self.is_video:
-            pts, bboxes, crops, clss, orig_bboxes = self.crpr.live_cropper_img(
-                frame, tolerance=self.tolerance
-            ) #if hasattr(self.crpr, 'live_cropper_img_from_frame') else self.crpr.live_cropper_img(
-                #str(img_name), tolerance=self.tolerance
-            #)
+        if override is None:
+            if self.is_video:
+                pts, bboxes, crops, clss, orig_bboxes = self.crpr.live_cropper_img(
+                    frame, tolerance=self.tolerance
+                ) #if hasattr(self.crpr, 'live_cropper_img_from_frame') else self.crpr.live_cropper_img(
+                    #str(img_name), tolerance=self.tolerance
+                #)
+            else:
+                pts, bboxes, crops, clss, orig_bboxes = self.crpr.live_cropper_img(
+                    str(img_path), tolerance=self.tolerance, 
+                    threshold = self.threshold
+                )
         else:
             pts, bboxes, crops, clss, orig_bboxes = self.crpr.live_cropper_img(
-                str(img_path), tolerance=self.tolerance, 
+                frame, tolerance=self.tolerance, 
                 threshold = self.threshold
             )
         
@@ -375,7 +386,61 @@ class ImageSequenceExporter:
         self.export_side = class_out
         
         self.save_to_mat(pts_out, bxs_out, [dict_out], fname)
+    
+    def fix_predictions(self):
+        """Rotate current image in 10° increments and reload UI state with best rotation."""
+       
+    
+        frame = self.current_frame.copy()
+        best_sum_prob = -1
+        best_result = None
+    
+        # Rotate 0–180° in 30° steps
+        for angle in range(0, 181, 10):
+            rot_mat = cv2.getRotationMatrix2D(
+                (frame.shape[1] // 2, frame.shape[0] // 2), angle, 1.0
+            )
+            rotated = cv2.warpAffine(frame, rot_mat, (frame.shape[1], frame.shape[0]))
+    
+            pts, bboxes, crops, clss, orig_bboxes = self.crpr.live_cropper_img(
+                rotated, tolerance=self.tolerance, threshold=self.threshold
+            )
+    
+            if bboxes is None or len(bboxes) == 0:
+                continue
+    
+            probs = np.array([c[1] if isinstance(c, (tuple, list)) else float(c) for c in clss])
+            prob_sum = probs.sum()
+    
+            if prob_sum > best_sum_prob:
+                best_sum_prob = prob_sum
+                best_result = (rotated, pts, bboxes, crops, clss, orig_bboxes)
+    
+        if best_result is None:
+            messagebox.showinfo("Fix predictions", "No prediction found for any rotation.")
+            return
+    
+        #Unpack best result
 
+        rotated, pts, bboxes, crops, clss, orig_bboxes = best_result
+    
+        #Replace current image and prediction results
+        self.current_frame = rotated
+        self.current_pts = pts
+        self.current_boxes = bboxes
+        self.current_orig_boxes = orig_bboxes
+        self.current_classes = clss
+        self.current_paw_images = crops
+        self.current_box_selection = 0
+    
+        #IMPORTANT: Synchronize UI elements and run full update pipeline
+        self.prediction_scale.configure(to=len(bboxes) - 1)
+        self.prediction_scale.set(0)
+        self.prediction_scale.state(["!disabled"])
+        self.export_button.state(["!disabled"])
+    
+        #updating the frame
+        self.update_frame(override=rotated)
 
     def save_to_mat(self,pts, bxs, data_dict, image_name):
         """
@@ -682,7 +747,7 @@ class paw_cropper:
             img = cv2.imread(image)
         else: 
             img = image
-        bxs,kps,cls = self.detector.detect_4_UI(img, threshold=threshold)
+        bxs,kps,cls,props = self.detector.detect_4_UI(img, threshold=threshold)
         pts, boxes, imgs, classes,orig_bboxes = [], [], [], [],[]
         for j in range(kps.shape[0]):
             pt = kps[j,:,0:3].reshape([15,3]) # hardcoded size
