@@ -35,7 +35,7 @@ class paw_detector:
         # 1. convert to RGB
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
-    #2. Resize shortest side to 800px
+        #2. Resize shortest side to 1344px (initial size limit in training)
         h, w = img_rgb.shape[:2]
         scale = 1344 / min(h, w)
         new_w, new_h = int(scale * w), int(scale * h)
@@ -44,12 +44,12 @@ class paw_detector:
         # 3. Convert to CHW tensor
         tensor = torch.as_tensor(img_rgb).permute(2, 0, 1).float()
     
-        # 4. Detectron normalization (RGB order!)
+        # 4. Detectron normalization (RGB order)
         PIXEL_MEAN = torch.tensor([123.675, 116.28, 103.53]).view(3, 1, 1)
         PIXEL_STD = torch.tensor([1.0, 1.0, 1.0]).view(3, 1, 1)
         tensor = (tensor - PIXEL_MEAN) / PIXEL_STD
     
-        return img_rgb, tensor, scale  # ✅ NO batch dim here!
+        return img_rgb, tensor, scale  
 
 
     # ---------------------------
