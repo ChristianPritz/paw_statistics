@@ -84,8 +84,7 @@ python fetch_from_osf.py
 
 8) Verify installation and GPU (if applicable)
 ```bash
-python -c "import torch, cv2, sklearn, pycricstat2, statsmodels; print('Packages complete!')"
-python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); \nprint(f'Device count: {torch.cuda.device_count()}'); \nprint(f'Current device: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}')"
+python verify_installation.py
 ```
 
 ---
