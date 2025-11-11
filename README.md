@@ -39,20 +39,20 @@ cd paw_statistics
 ```
 
 2) Create and activate a virtual environment (recommended)
-- Unix / macOS:
+- Use conda (recommended if you use GPU):
+```bash
+conda create -n paw_statistics python=3.11
+conda activate paw_statistics
+```
+- or alternatively virtualenv in Unix / macOS:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 ```
-- Windows (PowerShell):
+- or virtualenv in Windows (PowerShell):
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-```
-- Or use conda (recommended if you use GPU):
-```bash
-conda create -n paw_statistics python=3.11
-conda activate paw_statistics
 ```
 
 3) Upgrade pip and install PyTorch matching your CUDA (examples)
@@ -75,7 +75,6 @@ pip install -r requirements.txt
 - For development, use an editable install (if you add setup files):
 ```bash
 pip install -e .
-pip install -e .[dev]   # if dev extras are provided
 ```
 
 6) Fetch the model and data from the OSF.io repository
