@@ -16,7 +16,6 @@ import numpy as np
 
 
 # this is the path to the model_troch.pt file adjust it accordingly
-#model_path = '/home/wormulon/Documents/trained models/paw_model_reduced/model_torch.pt'
 model_path = './model/model_torch.pt'
 device = 'cuda' #'cuda' for a GPU otherwise 'cpu' 
 
