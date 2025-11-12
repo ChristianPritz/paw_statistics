@@ -14,7 +14,9 @@ import os
 import numpy as np
 
 
+
 # this is the path to the model_troch.pt file adjust it accordingly
+#model_path = '/home/wormulon/Documents/trained models/paw_model_reduced/model_torch.pt'
 model_path = './model/model_torch.pt'
 device = 'cuda' #'cuda' for a GPU otherwise 'cpu' 
 
@@ -94,13 +96,13 @@ metadata = {"treatment": ["CAPSAICIN_25","CAPSAICIN_2500","vehicle_control","CAP
 
 
 # Specify the filepath of the video file
-video_path = './examples/video/example_movie.MOV'
+video_path = './examples/demo_video/example_movie.MOV'
 
 # OPTIONAL: use an UI for finding the movie 
 # video_path = filedialog.askopenfilename(title="Select Video File", filetypes=[("MOV Files", "*.MOV")])
 
 #specify an output path for saving exported images and data
-output_path = '/examples/video/output'
+output_path = '/examples/demo_video/output'
 if not os.path.isdir(output_path):
     os.mkdir(output_path)
 
