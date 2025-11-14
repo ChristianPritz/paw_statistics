@@ -115,12 +115,28 @@ class ImageSequenceExporter:
             command=self.on_frame_scroll
         )
         self.frame_scroll.pack(side="left", fill="x", expand=True, padx=5)
+        # file or video name label: 
+        # --- Display current filename below scrollbar ---
+        
+        
         
         # Entry field for numeric frame input
         self.frame_index_var = tk.StringVar(value=str(self.current_index))
         self.frame_entry = ttk.Entry(nav_frame_bottom, textvariable=self.frame_index_var, width=6)
         self.frame_entry.pack(side="right", padx=5)
         self.frame_entry.bind("<Return>", self.on_frame_entry)
+        
+        # --- NEW: filename frame centered at bottom ---
+        filename_frame = ttk.Frame(self.video_frame)
+        filename_frame.pack(fill="x", pady=(3, 10))
+        
+        self.filename_label = ttk.Label(
+            filename_frame,
+            text="",
+            font=("TkDefaultFont", 10, "bold"),
+            anchor="center"
+        )
+        self.filename_label.pack(expand=True)
 
 
         self.export_button = ttk.Button(nav_frame, text="Export cropped", command=self.export_segmented_paw)
@@ -168,6 +184,16 @@ class ImageSequenceExporter:
 
         self.update_frame()
         self.root.mainloop()
+    
+    def update_filename_label(self):
+        """Display only the filename (no path) depending on image/video mode."""
+        if self.is_video:
+            _,vid_name = os.path.split(self.image_dir)
+            fname = f"{vid_name} frame_{self.current_index:05d}"
+        else:
+            fname = Path(self.image_files[self.current_index]).name
+    
+        self.filename_label.config(text=fname)
 
     def on_threshold_change(self, event=None):
         """Update the detection threshold and refresh frame."""
@@ -260,6 +286,8 @@ class ImageSequenceExporter:
             frame = override
         
         self.update_nav_controls()
+        self.update_filename_label()
+        
         # --- Handle tolerance input ---
         tol = self.tolerance_entry.get().lower()
         try:
