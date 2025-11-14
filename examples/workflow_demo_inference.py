@@ -15,7 +15,28 @@ import numpy as np
 
 
 
+# IMPORTANT NOTE:
+# -----------------------------------------------------------------------------
+# This UI tool allows you to collect corrected predictions and metadata from
+# images and videos, and saves them into a database.
+#
+# IMPORTANT: THE UI DOES NOT REMEMBER PREVIOUSLY SAVED PREDICTIONS DURING RUNTIME.
+# Navigating back to earlier predictions is not possible because the UI works
+# strictly in a feed-forward manner.
+#
+# Workflow:
+#     IMAGE --> prediction --> UI: correction + labels --> DATABASE ENTRY
+#
+# Note that every click on "Export cropped" creates a new database entry.
+# Be careful to avoid creating duplicate entries.
+# ----------------------------------------------------------------------------
+ 
+
+
+
+
 # this is the path to the model_troch.pt file adjust it accordingly
+#model_path = '/home/wormulon/Documents/trained models/paw_model_reduced/model_torch.pt'
 model_path = './model/model_torch.pt'
 device = 'cuda' #'cuda' for a GPU otherwise 'cpu' 
 
