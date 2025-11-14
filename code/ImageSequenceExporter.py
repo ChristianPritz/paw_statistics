@@ -572,11 +572,55 @@ class ImageSequenceExporter:
         self.prediction_scale.state([state])
         self.export_button.state([state])
     
+    
+
+    
+    
+    
     def export_segmented_paw(self):
         if not hasattr(self, "current_boxes") or len(self.current_boxes) == 0:
             messagebox.showwarning("No predictions", "No predictions available for this frame.")
             return
-
+   
+        # -------------------------------------------------------------
+        #  DUPLICATE ENTRY CHECK
+        # -------------------------------------------------------------
+        # Read current metadata values from UI
+        current_meta = {}
+        for key, widget in self.metadata_inputs.items():
+            val = widget.get()
+            current_meta[key] = val
+         
+        # Only compare metadata columns that the user can change
+        columns_to_check = list(self.metadata_inputs.keys())
+         
+        # Check against existing entries in the label database
+        if hasattr(self.paw_stats, "label_db") and len(self.paw_stats.label_db) > 0:
+         
+            # Extract only the relevant metadata columns
+            db_subset = self.paw_stats.label_db[columns_to_check]
+         
+            # Convert the row values into a comparable tuple
+            current_tuple = tuple(current_meta[col] for col in columns_to_check)
+         
+            # Generate tuples for every row
+            db_tuples = [tuple(row[col] for col in columns_to_check)
+                         for _, row in db_subset.iterrows()]
+         
+            if current_tuple in db_tuples:
+                messagebox.showinfo(
+                    "Duplicate Entry",
+                    "!! - This metadata combination already exists in the database!!\n"
+                    "Please check to avoid creating double entries."
+                )
+                return  # NO EXPROT - DUPLICATE
+        # -------------------------------------------------------------
+        #        END DUPLICATE CHECK — EXPORT CONTINUES AS BEFORE
+        # -------------------------------------------------------------
+        
+        
+        
+        
 
         p = self.image_files[self.current_index]
 
@@ -604,9 +648,10 @@ class ImageSequenceExporter:
         md = {k: w.get() for k, w in self.metadata_inputs.items()}
   
         md.update({"image_name": out_name, "source_image": name, 
-                   "crop_index": sel,"predicted_side":self.export_side,
-                   "image_dir":self.output_dir,
-                   "frame_number":self.current_index})
+                    "crop_index": sel,"predicted_side":self.export_side,
+                    "image_dir":self.output_dir,
+                    "frame_number":self.current_index})
+        #This is redundant with paw_stats.label_db
         self.dataframe = pd.concat([self.dataframe, pd.DataFrame([md])], ignore_index=True)
         self.correct_prediction(str(out_path))
         md["predicted_side"] = self.export_side
@@ -626,7 +671,7 @@ class ImageSequenceExporter:
             # Append the dictionary to the DataFrame
 
         self.paw_stats.label_db = pd.concat([self.paw_stats.label_db,
-                                             pd.DataFrame([md])],
+                                              pd.DataFrame([md])],
                                             ignore_index=True)
         
         self.export_bbox,self.export_pts,self.export_side = None,None,None
