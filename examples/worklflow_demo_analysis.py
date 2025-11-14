@@ -12,15 +12,23 @@ Created on Mon Nov  3 14:15:06 2025
 #-----------------------------------------------------------------------------#
 import numpy as np
 from paw_statistics import paw_statistics
-paws = paw_statistics(settings=None)
 
-# this loads the data from the zip file
-paws.load_data_zip()
 
 
 #-----------------------------------------------------------------------------#
 #                    Contained variables
 #-----------------------------------------------------------------------------#
+
+
+# Instantiating the paw_statistics
+paws = paw_statistics(settings=None)
+
+# this loads the data from the zip file
+# navigate in the menue to data.zip and select for loading. 
+paws.load_data_zip()
+
+#alternatively you can state a static filepath
+#paws.load_data_zip(filename='your/path/to/file.zip")
 
 # all angles 
 angles = paws.angles
