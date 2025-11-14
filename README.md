@@ -117,6 +117,18 @@ The pth file can be custom trained using detectron2.
 | GPU not detected | Check NVIDIA drivers and CUDA toolkit; run `python -c "import torch; print(torch.cuda.is_available())"` |
 
 ---
+## Application notes for the ImageSequenceExporter UI
+
+This UI tool allows you to collect corrected predictions and metadata from images and videos, and saves them into a database.
+
+IMPORTANT: THE UI DOES NOT REMEMBER PREVIOUSLY SAVED PREDICTIONS DURING RUNTIME.
+Navigating back to earlier predictions is not possible because the UI works strictly in a feed-forward manner.
+Note that every click on "Export Cropped" creates an entry. 
+Workflow:
+     IMAGE --> prediction --> UI: correction + labels --> DATABASE ENTRY
+
+---
+
 
 ## License & Contact
 Please add a LICENSE file if you plan to publish. For questions or issues, open an issue on GitHub: https://github.com/ChristianPritz/paw_statistics/issues
