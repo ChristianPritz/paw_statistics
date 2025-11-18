@@ -71,8 +71,11 @@ class ImageSequenceExporter:
         if paw_stats is not None:
             self.paw_stats = paw_statistics(None)
             self.paw_stats.load_data_zip(filename = paw_stats)
+            print('----------------------------------------------------------')
             print("DATA LOADED FROM: " + paw_stats)
-        
+            print('----------------------------------------------------------')
+            
+            
         else:
             columns = list(metadata.keys()) + ["image_name", "source_image",
                                                "crop_index", "predicted_side", 
