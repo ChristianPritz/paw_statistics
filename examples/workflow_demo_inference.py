@@ -99,15 +99,15 @@ DOB = "01.01.26" # Day of birth default value
  
 # this defines your labels, each keyword is a label category, 
 #each list the possible labels
-metadata = {"treatment": ["CAPSAICIN_25","CAPSAICIN_2500","vehicle_control","CAPSAICIN_INJECTED","NO_INJECTION"], "animal_id": prefix, "DOB": DOB,
-            "gender":["MALE","FEMALE"],"genotype":["WT","KO"],
-            "strain":"C57BL/6","side": ["right", "left", "I DON'T KNOW"],
+metadata = {"treatment": ["CAPSAICIN_25","vehicle_control","CAPSAICIN_INJECTED","NO_INJECTION"],
+            "animal_id": prefix,
+            "DOB": DOB,
+            "gender":["MALE","FEMALE"],
+            "genotype":["WT","KO"],
+            "strain":"C57BL/6",
+            "side": ["right", "left"],
             "pain_status":["pain","no_pain","accute_pain","recovered"],
-            "paw_posture":["clenched","open","closed"],
-            "injection_status":["worked","unclear","failed"],
-            "liquid_presence":["no","yes"],
-            "orientation":["good","ok","useless","impossible"]}
-
+            "paw_posture":["clenched","open","closed"]}
 
 #-----------------------------------------------------------------------------#
 #                   I M P O R T   F R O M   V I D E O S 
@@ -127,7 +127,19 @@ if not os.path.isdir(output_path):
     os.mkdir(output_path)
 
 
-exporter = ImageSequenceExporter(video_path, metadata,detector_settings,width=500,prefix=prefix,output_dir=output_path)
+exporter = ImageSequenceExporter(video_path, metadata,detector_settings,
+                                 width=500,prefix=prefix,output_dir=output_path)
+
+# if you want to continue adding paws to an existing database use the paw_stats
+# argument: 
+    
+path_to_zip = './your/path/to/zipfile.zip'
+
+exporter = ImageSequenceExporter(video_path,metadata,detector_settings,
+                                 width=500,prefix=prefix,
+                                 output_dir=output_path,
+                                 paw_stats=path_to_zip)
+
 
 
 #-----------------------------------------------------------------------------#
