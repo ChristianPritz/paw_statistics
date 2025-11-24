@@ -153,18 +153,13 @@ metadata = {"treatment": ["treatment 1","treatment 2","treatment 3","control"],
 # OPTIONAL: use an UI for finding the movie 
 video_path = filedialog.askopenfilename(title="Select Video File", filetypes=[("MOV Files", "*.MOV")])
 
-#specify an output path for saving exported images and data
-output_path = ask_for_directory("output directory") 
-if not os.path.isdir(output_path):
-    os.mkdir(output_path)
-
-exporter = ImageSequenceExporter(video_path, metadata,detector_settings,width=500,prefix=prefix,output_dir=output_path)
+exporter = ImageSequenceExporter(video_path, metadata,detector_settings,width=500,prefix=prefix)
 
 ## in case you want to continue working on an existing file uncomment the 
 # following lines: 
 
 # exporter = ImageSequenceExporter(video_path, metadata,detector_settings,
-#                                   width=500,prefix=prefix,output_dir=output_path,
+#                                   width=500,prefix=prefix,
 #                                   paw_stats="load")
     
 

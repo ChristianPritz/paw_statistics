@@ -147,19 +147,16 @@ metadata = {"treatment": ["treatment 1","treatment 2","treatment 3","control"],
 
 #image_path = filedialog.askdirectory(title="Select image Folder")
 image_path = ask_for_directory("image directory")
-output_path = ask_for_directory("output directory") 
-if not os.path.isdir(output_path):
-    os.mkdir(output_path)
 exporter = ImageSequenceExporter(image_path, metadata,detector_settings,
-                                 width=500,prefix=prefix,output_dir=output_path)
+                                 width=500,prefix=prefix)
 
 
 ## in case you want to continue working on an existing file uncomment the 
 # following lines: 
 
-exporter = ImageSequenceExporter(image_path, metadata,detector_settings,
-                                  width=500,prefix=prefix,output_dir=output_path,
-                                  paw_stats="")
+#exporter = ImageSequenceExporter(image_path, metadata,detector_settings,
+#                                  width=500,prefix=prefix,
+#                                  paw_stats="")
     
 
 
