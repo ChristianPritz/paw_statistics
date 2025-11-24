@@ -23,17 +23,21 @@ from paw_statistics import paw_statistics
 
 class ImageSequenceExporter:
     def __init__(self, image_dir, metadata, detector_settings,
-                 width=300, factor=3, output_dir=None, prefix="", paw_stats=None):
+                 width=300, factor=3, prefix="", paw_stats=None):
         self.root = tk.Tk()
         self.image_dir = Path(image_dir)
         self.metadata = metadata
         self.dataframe = pd.DataFrame(columns=list(metadata.keys()) +
                                       ["image_name", "source_image", "crop_index"])
-        self.output_dir = Path(output_dir) if output_dir else self.image_dir
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        p,_ = os.path.split(self.image_dir)
+        self.output_dir = p # serves as default path
+        os.makedirs(self.output_dir, exist_ok=True)
         self.width = width
         self.factor = factor
         self.prefix = prefix
+        self.save_name = 'default'
+        self.define_file_name()
     
 
 
@@ -191,7 +195,7 @@ class ImageSequenceExporter:
                 ent.pack()
                 self.metadata_inputs[key] = ent
 
-        ttk.Button(self.metadata_frame, text="Select Output Dir", command=self.select_output_directory).pack(pady=5)
+        ttk.Button(self.metadata_frame, text="Define file name", command=self.define_file_name).pack(pady=5)
         ttk.Button(self.metadata_frame, text="Save & Exit", command=self.save_and_exit).pack(pady=10)
 
         self.update_frame()
@@ -340,7 +344,7 @@ class ImageSequenceExporter:
             # Overlay text
             self.canvas.create_text(
                 self.width // 2, self.height // 2,
-                text="⚠️ No predictions found",
+                text="No predictions found",
                 fill="yellow", font=("Arial", 20, "bold")
             )
         
@@ -696,19 +700,46 @@ class ImageSequenceExporter:
         
         
 
-    def select_output_directory(self):
-        d = filedialog.askdirectory(title="Select Output Directory")
-        if d:
-            self.output_dir = Path(d)
-            self.output_dir.mkdir(exist_ok=True)
-            messagebox.showinfo("Output Dir", f"Now saving to {d}")
+    def define_file_name(self):
+        # Ask for save path (includes filename)
+        file_path = filedialog.asksaveasfilename(
+            title="Choose filename",
+            defaultextension=".zip",
+            filetypes=[("ZIP files", "*.zip")],
+            initialdir=str(self.output_dir),
+            initialfile=self.save_name if self.save_name else "export.zip"
+        )
+    
+        if not file_path:
+            return  # user cancelled
+    
+        # Normalize extension to .zip
+        file_path = str(file_path)
+        if not file_path.lower().endswith(".zip"):
+            file_path += ".zip"
+    
+        # Split into folder + filename
+        folder = os.path.dirname(file_path)
+        filename = os.path.basename(file_path)
+    
+        # Save internally
+        self.output_dir = Path(folder)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+    
+        self.save_name_zip = filename
+        self.save_name = filename[0:-4]
+    
+        messagebox.showinfo(
+            "Filename Set",
+            f"Data will be saved to:\n{self.output_dir}\n\nFile: {self.save_name}"
+        )
 
 
     def save_data(self):
 
-        csv = self.output_dir / f"{self.prefix}-{self.image_dir.name}.csv"
+        csv = self.output_dir / f"{self.save_name}.csv"
         self.dataframe.to_csv(csv, index=False)
-        zip_name = self.output_dir / f"{self.prefix}-{self.image_dir.name}.zip"
+        zip_name = self.output_dir / f"{self.save_name_zip}"
         self.paw_stats.all_angles()
         self.paw_stats.save_data_zip(filename=zip_name)
         self.csv_name = csv
