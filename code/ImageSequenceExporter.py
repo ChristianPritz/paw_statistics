@@ -69,10 +69,19 @@ class ImageSequenceExporter:
                                 directory=str(self.image_dir if not self.is_video else self.output_dir),
                                 output_dir=str(self.output_dir))
         if paw_stats is not None:
+ 
             self.paw_stats = paw_statistics(None)
-            self.paw_stats.load_data_zip(filename = paw_stats)
+ 
+            if os.path.exists(paw_stats):
+
+                self.paw_stats.load_data_zip(filename = paw_stats)
+            else:
+
+                self.paw_stats.load_data_zip()
+                
+            
             print('----------------------------------------------------------')
-            print("DATA LOADED FROM: " + paw_stats)
+            print("- DATA LOADED FROM EXISTING FILE - " + paw_stats)
             print('----------------------------------------------------------')
             
             
