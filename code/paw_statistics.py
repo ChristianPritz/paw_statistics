@@ -33,7 +33,7 @@ from statsmodels.stats.multitest import multipletests
 class paw_statistics():
     # maybe chain up some of the parameters in a dictionary....................
     # replace all the settings == Nonene checks with key in dict checks.
-    def __init__(self,settings,columns=None):
+    def __init__(self,settings=None,columns=None):
         if settings is None:
             settings = self.default_settings() 
             
@@ -4141,9 +4141,12 @@ class paw_statistics():
         
         return fig,fig.axes        
         
-        
-        
-        
+
+#-----------------------------------------------------------------------------#
+#        
+# Post relaes features         
+#        
+#-----------------------------------------------------------------------------#
         
         
         

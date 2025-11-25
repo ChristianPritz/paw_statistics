@@ -14,15 +14,20 @@ Framework for analysis of static hind paw postures.
 
 Modules:
 - paw_detector.py
+- paw_detector_torch.py
 - paw_statistics.py
 - ImageSequenceExporter.py
 - interactive_plot_UI.py
+- plotter_UI.py
 """
 
 __version__ = "1.0.0"
 
 from .paw_detector_torch import *
+from .paw_detector import *
 from .paw_statistics import *
 from .ImageSequenceExporter import *
 from .interactive_plot_UI import *
+from .plotter_UI import *
+
 __all__ = []
