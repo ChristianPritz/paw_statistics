@@ -12,7 +12,27 @@ Created on Mon Nov  3 14:15:06 2025
 #-----------------------------------------------------------------------------#
 import numpy as np
 from paw_statistics import paw_statistics
+from plotter_UI import PlotterUI
+#-----------------------------------------------------------------------------#
 
+
+#-----------------------------------------------------------------------------#
+#                   Plotting with UI support 
+#-----------------------------------------------------------------------------#
+# Note this is not relevant to our bioRxiv manuscirpt but intended to 
+# facilitate easy plotting in future. This is WIP and not tested outside 
+# SPYDER IDE. This allows plotting of angular analytics and PCs. Please 
+# Plot properties are not fully implemented yet and might lead errors.  
+
+paws = paw_statistics() #instantiate paw_statistics
+paws.load_data_zip() #load data from a zip file 
+PlotterUI(paws) #start the plotter UI
+
+
+
+#-----------------------------------------------------------------------------#
+#                   Plotting with using scripts 
+#-----------------------------------------------------------------------------#
 
 
 #-----------------------------------------------------------------------------#
@@ -21,7 +41,7 @@ from paw_statistics import paw_statistics
 
 
 # Instantiating the paw_statistics
-paws = paw_statistics(settings=None)
+paws = paw_statistics()
 
 # this loads the data from the zip file
 # navigate in the menue to data.zip and select for loading. 
