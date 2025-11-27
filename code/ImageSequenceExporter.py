@@ -470,7 +470,7 @@ class ImageSequenceExporter:
         # Rotate 0–180° in 30° steps
         random_rots = [10,11,12,13,14,15]
         rot = np.random.choice(random_rots,size=1)
-        for angle in range(0, 181, rot):
+        for angle in range(0, 181, int(rot[0])):
             rot_mat = cv2.getRotationMatrix2D(
                 (frame.shape[1] // 2, frame.shape[0] // 2), angle, 1.0
             )
