@@ -6,11 +6,11 @@ Checks imports of required packages and prints useful diagnostic messages.
 """
 
 packages = {
-    "torch": "PyTorch (machine learning)",
     "cv2": "OpenCV (computer vision)",
     "sklearn": "Scikit-Learn (machine learning/statistics)",
     "pycricstat2": "pycricstat2 (custom / statistical)",
     "statsmodels": "Statsmodels (regression / statistics)"
+    "torch": "PyTorch (machine learning)",
 }
 
 print("\n=== PACKAGE IMPORT VERIFICATION ===\n")
@@ -22,6 +22,7 @@ for pkg, description in packages.items():
     except ImportError as e:
         print(f"✖ ERROR importing {pkg} — {description}")
         print(f"  → {e}\n")
+        print("Note the some torch erros do not break the paw_statistics")
 
 # -------- CUDA CHECK --------
 print("\n=== CUDA / GPU CHECK (PyTorch) ===\n")
