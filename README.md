@@ -2,7 +2,7 @@
 
 is a Python framework for analysis of static hind paw postures.
 
-## Paw keypoint segmentation and Analysis Pipeline
+## Paw keypoint segmentation and analysis pipeline
 
 A complete, modular pipeline for keypoint segmentation and analysis built on Detectron2.
 This toolkit, implemented in PyTorch, enables you to run inference on images of mouse hindpaws, review and correct keypoint predictions through an intuitive user interface, and perform morphological and statistical analyses using common Python libraries. The models can be custom-trained within a Detectron2 environment.
