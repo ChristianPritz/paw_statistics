@@ -61,7 +61,7 @@ class ImageSequenceExporter:
 
         self.current_index = 0
         self.threshold = 0.7
-        self.tolerance = 0.25  # default
+        self.tolerance = 0.35  # default
         self.counter = {}     # per-image crop counter
         self.detector_settings = detector_settings
         self.crpr = paw_cropper(detector_settings['model_path'],
@@ -100,29 +100,57 @@ class ImageSequenceExporter:
 
     def create_ui(self):
         self.root.title("Image Dir Frame Exporter")
-
+    
         self.main_frame = ttk.Frame(self.root)
         self.main_frame.pack(fill="both", expand=True)
-
+    
         self.video_frame = ttk.Frame(self.main_frame)
         self.video_frame.pack(side="left", fill="both", expand=True)
+    
+        # --- metadata frame using grid so we can do col1/col2 ---
         self.metadata_frame = ttk.Frame(self.main_frame)
         self.metadata_frame.pack(side="right", fill="y")
-
-        self.canvas = tk.Canvas(self.video_frame, width=self.width, height=self.width, bg="black")
+        
+        # Outer border frame that spans top→bottom
+        self.metadata_border = tk.Frame(
+            self.metadata_frame,
+            highlightbackground="black",
+            highlightthickness=2,
+            bd=0
+        )
+        self.metadata_border.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # Inner 2-column layout
+        self.metadata_border.columnconfigure(0, weight=1)
+        self.metadata_border.columnconfigure(1, weight=1)
+        
+        # Two subframes = two columns
+        self.meta_col1 = ttk.Frame(self.metadata_border)   # metadata fields
+        self.meta_col2 = ttk.Frame(self.metadata_border)   # control widgets
+        
+        self.meta_col1.grid(row=0, column=0, sticky="nsw", padx=5, pady=5)
+        self.meta_col2.grid(row=0, column=1, sticky="nse", padx=5, pady=5)
+    
+        # ---------------- VIDEO CANVAS ----------------
+        self.canvas = tk.Canvas(self.video_frame, width=self.width,
+                                height=self.width, bg="black")
         self.canvas.pack(padx=5, pady=5)
-
+    
+        # ---------------- NAVIGATION -------------------
         nav_frame = ttk.Frame(self.video_frame)
         nav_frame.pack()
-        ttk.Button(nav_frame, text="<< Prev", command=self.prev_frame).pack(side="left")
-        ttk.Button(nav_frame, text="Next >>", command=self.next_frame).pack(side="left")
-        # --- Frame navigation bar (scroll + entry) ---
+    
+        ttk.Button(nav_frame, text="<< Prev",
+                   command=self.prev_frame).pack(side="left")
+        ttk.Button(nav_frame, text="Next >>",
+                   command=self.next_frame).pack(side="left")
+    
+        # Frame navigation bar (bottom)
         nav_frame_bottom = ttk.Frame(self.video_frame)
         nav_frame_bottom.pack(fill="x", pady=(5, 10))
-        
+    
         ttk.Label(nav_frame_bottom, text="Frame:").pack(side="left", padx=5)
-        
-        # Scrollbar to browse through frames
+    
         self.frame_scroll = ttk.Scale(
             nav_frame_bottom,
             from_=0,
@@ -131,73 +159,73 @@ class ImageSequenceExporter:
             command=self.on_frame_scroll
         )
         self.frame_scroll.pack(side="left", fill="x", expand=True, padx=5)
-        # file or video name label: 
-        # --- Display current filename below scrollbar ---
-        
-        
-        
-        # Entry field for numeric frame input
+    
         self.frame_index_var = tk.StringVar(value=str(self.current_index))
-        self.frame_entry = ttk.Entry(nav_frame_bottom, textvariable=self.frame_index_var, width=6)
+        self.frame_entry = ttk.Entry(nav_frame_bottom,
+                                     textvariable=self.frame_index_var, width=6)
         self.frame_entry.pack(side="right", padx=5)
         self.frame_entry.bind("<Return>", self.on_frame_entry)
-        
-        # --- NEW: filename frame centered at bottom ---
+    
         filename_frame = ttk.Frame(self.video_frame)
         filename_frame.pack(fill="x", pady=(3, 10))
-        
-        self.filename_label = ttk.Label(
-            filename_frame,
-            text="",
-            font=("TkDefaultFont", 10, "bold"),
-            anchor="center"
-        )
+    
+        self.filename_label = ttk.Label(filename_frame,
+                                        text="", font=("TkDefaultFont", 10, "bold"),
+                                        anchor="center")
         self.filename_label.pack(expand=True)
-
-
-        self.export_button = ttk.Button(nav_frame, text="Export cropped", command=self.export_segmented_paw)
+    
+        self.export_button = ttk.Button(nav_frame, text="Export cropped",
+                                        command=self.export_segmented_paw)
         self.export_button.pack(side="left")
-
-        # --- Scrollbar for prediction selection ---
-        self.prediction_scale = ttk.Scale(
-            self.metadata_frame, from_=0, to=0, orient="horizontal",
-            command=self.on_prediction_change
-        )
-        ttk.Label(self.metadata_frame, text="Select Prediction:").pack(pady=5)
+    
+        # ---------------- COLUMN 2 CONTENT ----------------
+        ttk.Label(self.meta_col2, text="Select Prediction:").pack(pady=5)
+        self.prediction_scale = ttk.Scale(self.meta_col2, from_=0, to=0,
+                                          orient="horizontal",
+                                          command=self.on_prediction_change)
         self.prediction_scale.pack(pady=5, fill="x")
-        self.prediction_scale.set(0)
-
-        ttk.Label(self.metadata_frame, text="Detection Threshold (0–1):").pack(pady=2)
-        self.threshold_entry = ttk.Entry(self.metadata_frame)
+    
+        ttk.Label(self.meta_col2, text="Detection Threshold (0–1):").pack(pady=2)
+        self.threshold_entry = ttk.Entry(self.meta_col2)
         self.threshold_entry.insert(0, str(self.threshold))
         self.threshold_entry.pack(pady=2)
-        self.threshold_entry.bind("<Return>", self.on_threshold_change)        
-
-        ttk.Label(self.metadata_frame, text="Crop Tolerance (0–1 or inf):").pack(pady=2)
-        self.tolerance_entry = ttk.Entry(self.metadata_frame)
+        self.threshold_entry.bind("<Return>", self.on_threshold_change)
+    
+        ttk.Label(self.meta_col2, text="Crop Tolerance (0–1 or inf):").pack(pady=2)
+        self.tolerance_entry = ttk.Entry(self.meta_col2)
         self.tolerance_entry.insert(0, str(self.tolerance))
         self.tolerance_entry.pack(pady=2)
-        ttk.Button(self.metadata_frame, text="Fix predictions", command=self.fix_predictions).pack(pady=5)
-
-
-        ttk.Label(self.metadata_frame, text="Metadata:").pack(pady=5)
+    
+        ttk.Button(self.meta_col2, text="Fix predictions",
+                   command=self.fix_predictions).pack(pady=5)
+        ttk.Button(self.meta_col2, text="Place points manually",
+           command=self.place_keypoints).pack(pady=5)
+    
+        ttk.Button(self.meta_col2, text="Define file name",
+                   command=self.define_file_name).pack(pady=5)
+        ttk.Button(self.meta_col2, text="Save & Exit",
+                   command=self.save_and_exit).pack(pady=10)
+    
+        # ---------------- COLUMN 1: METADATA FIELDS ----------------
+        ttk.Label(self.meta_col1, text="Metadata:",
+                  font=("TkDefaultFont", 10, "bold")).pack(pady=5)
+    
         self.metadata_inputs = {}
         for key, value in self.metadata.items():
-            ttk.Label(self.metadata_frame, text=key).pack()
+            ttk.Label(self.meta_col1, text=key).pack(anchor="w")
+    
             if isinstance(value, list):
-                cb = ttk.Combobox(self.metadata_frame, values=value)
+                cb = ttk.Combobox(self.meta_col1, values=value)
                 cb.set(value[0])
-                cb.pack()
+                cb.pack(fill="x", pady=1)
                 self.metadata_inputs[key] = cb
             else:
-                ent = ttk.Entry(self.metadata_frame)
+                ent = ttk.Entry(self.meta_col1)
                 ent.insert(0, value)
-                ent.pack()
+                ent.pack(fill="x", pady=1)
                 self.metadata_inputs[key] = ent
-
-        ttk.Button(self.metadata_frame, text="Define file name", command=self.define_file_name).pack(pady=5)
-        ttk.Button(self.metadata_frame, text="Save & Exit", command=self.save_and_exit).pack(pady=10)
-
+    
+        # Init
         self.update_frame()
         self.root.mainloop()
     
@@ -406,7 +434,7 @@ class ImageSequenceExporter:
         app = interactive_plot_UI(self.root, img, pts_in[:, [0, 1]], bbox_in,
                                   self.detector_settings["connect_logic"],
                                   self.detector_settings["colors_ui"],
-                                  title='Correct the points',
+                                  title='Inspect and correct the predictions',
                                   window_size=[1000, 1000])
 
 
@@ -440,7 +468,9 @@ class ImageSequenceExporter:
         best_result = None
     
         # Rotate 0–180° in 30° steps
-        for angle in range(0, 181, 10):
+        random_rots = [10,11,12,13,14,15]
+        rot = np.random.choice(random_rots,size=1)
+        for angle in range(0, 181, rot):
             rot_mat = cv2.getRotationMatrix2D(
                 (frame.shape[1] // 2, frame.shape[0] // 2), angle, 1.0
             )
@@ -588,10 +618,7 @@ class ImageSequenceExporter:
         self.prediction_scale.state([state])
         self.export_button.state([state])
     
-    
 
-    
-    
     
     def export_segmented_paw(self):
         if not hasattr(self, "current_boxes") or len(self.current_boxes) == 0:
@@ -696,14 +723,118 @@ class ImageSequenceExporter:
         self.save_data()
         
         messagebox.showinfo("Success", f"Saved {out_name}")
+   
+    def place_keypoints(self):
+        """
+        Simple ROI drawing tool: click–drag rectangle on the image canvas.
+        Stores ROI in self.manual_roi.
+        """
+        self.manual_roi = None
+        self.manual_roi_start = None
+        self.roi_rect = None
+
+        def on_mouse_down(event):
+            self.manual_roi_start = (event.x, event.y)
+            if self.roi_rect is not None:
+                self.canvas.delete(self.roi_rect)
+                self.roi_rect = None
+
+        def on_mouse_drag(event):
+            if self.manual_roi_start is None:
+                return
+            x0, y0 = self.manual_roi_start
+            x1, y1 = event.x, event.y
+            if self.roi_rect is not None:
+                self.canvas.delete(self.roi_rect)
+            self.roi_rect = self.canvas.create_rectangle(
+                x0, y0, x1, y1, outline="lime", width=2
+            )
+
+        def on_mouse_up(event):
+            if self.manual_roi_start is None:
+                return
+            x0, y0 = self.manual_roi_start
+            x1, y1 = event.x, event.y
+            self.manual_roi = (x0, y0, x1, y1)
+
+            print("Manual ROI:", self.manual_roi)
+
+            # CLEAN UP
+            self.canvas.unbind("<Button-1>")
+            self.canvas.unbind("<B1-Motion>")
+            self.canvas.unbind("<ButtonRelease-1>")
+            self.prepare_manual_keypoints()
+
+        # Bind events
+        self.canvas.bind("<Button-1>", on_mouse_down)
+        self.canvas.bind("<B1-Motion>", on_mouse_drag)
+        self.canvas.bind("<ButtonRelease-1>", on_mouse_up)
+
+        print("Draw ROI: Click + drag on the image.")
         
+    def prepare_manual_keypoints(self):
+        #excise image
+        x0, y0, x1, y1 = self.manual_roi
+        if x1 < x0:
+            x0, x1 = x1, x0
+        if y1 < y0:
+            y0, y1 = y1, y0
+    
+        # rescale using self.scaler = [orig_h/new_h , orig_w/new_w]
+        scale_y, scale_x = self.scaler
+    
+        X0 = int(x0 * scale_x)
+        X1 = int(x1 * scale_x)
+        Y0 = int(y0 * scale_y)
+        Y1 = int(y1 * scale_y)
+    
+        frame = self.current_frame
+        H, W = frame.shape[:2]
+    
+        X0 = max(0, min(W - 1, X0))
+        X1 = max(0, min(W - 1, X1))
+        Y0 = max(0, min(H - 1, Y0))
+        Y1 = max(0, min(H - 1, Y1))
+        if X1 <= X0 or Y1 <= Y0:
+            messagebox.showwarning("Invalid ROI", "ROI is outside image bounds.")
+            return
+        crop = frame[Y0:Y1, X0:X1].copy()
+
+        # -------------------------------
+        # Generate empty predictions
+        # -------------------------------
+        pts, bxs = self.generate_empty_prediction(crop, ask_for_input=False)
+        if len(pts) == 0:
+            messagebox.showinfo("Cancelled", "No manual paws to generate.")
+            return
+    
+        # -------------------------------
+        # Store manual prediction buffers so correction can use them
+        # -------------------------------
+        self.manual_pts = pts
+        self.manual_bboxes = bxs
+        self.manual_crops = [crop]
+        self.manual_side = "unknown"
+    
+        # Disable prediction slider so user cannot change selection
+        self.prediction_scale.configure(state="disabled")
+    
+        # Temporarily override correction inputs
+        self.current_pts = pts
+        self.current_boxes = [[0, 0, crop.shape[1], crop.shape[0]]]  # full ROI
+        self.current_orig_boxes = self.current_boxes
+        self.current_paw_images = [crop]
+        self.current_classes = [["manual", 1.0]]
+        self.current_box_selection = 0
+        self.offset_x = [0]
+        self.offset_y = [0]
         
         
 
     def define_file_name(self):
         # Ask for save path (includes filename)
         file_path = filedialog.asksaveasfilename(
-            title="Choose filename",
+            title="Please choose filename for the data (zip file)",
             defaultextension=".zip",
             filetypes=[("ZIP files", "*.zip")],
             initialdir=str(self.output_dir),
@@ -753,7 +884,7 @@ class ImageSequenceExporter:
         self.root.destroy()
 
     
-    def generate_empty_prediction(self,img):
+    def generate_empty_prediction(self,img,ask_for_input=False):
         def ask_usr():
             root = tk.Tk()
             root.withdraw()  # Hide the main window
@@ -761,9 +892,12 @@ class ImageSequenceExporter:
             root.destroy()  # Close the hidden main window
             return user_input
         
-        user_input = ask_usr()
+        if ask_for_input:
+            user_input = ask_usr()
+        else:
+            user_input = 1
         if user_input == 0:
-            return [],[],[]
+            return [],[]
         else:
             raw = np.asarray([[0.5,0.2,1],
                     [0.3,0.45,1],
