@@ -334,6 +334,13 @@ class interactive_plot_UI:
         if self.user_interaction:
             return self.points, self.bbox
         else:
-            return self.original_points, self.original_bbox
+            #this ensures output as [x_min,y_min,x_max,y_max]
+            bbox = np.array([self.original_bbox[0],
+                            self.original_bbox[1],
+                            self.original_bbox[2]+self.original_bbox[0],
+                            self.original_bbox[3]+self.original_bbox[1]])
+            
+            
+            return self.original_points, bbox
     
    

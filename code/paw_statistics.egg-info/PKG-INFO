@@ -1,3 +1,39 @@
+Metadata-Version: 2.4
+Name: paw_statistics
+Version: 1.0.0
+Summary: Python framework for analysis of static hind paw postures
+Home-page: https://github.com/ChristianPritz/paw_statistics
+Author: Christian Pritz
+License: MIT
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: requests
+Requires-Dist: pandas
+Requires-Dist: scipy
+Requires-Dist: matplotlib
+Requires-Dist: scikit-learn
+Requires-Dist: statsmodels
+Requires-Dist: pycircstat2
+Requires-Dist: opencv-python-headless
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: flake8; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
 # paw_statistics
 
 is a Python framework for analysis of static hind paw postures.
@@ -92,12 +128,11 @@ python verify_installation.py
 
 * The deployed model (model_torch.pt) performs less accurately than the Detectron2 version (model.pth) due to limitations in model tracing, resulting in:
   
-  - a higher false-negative rate (to be fixed)
+  - a higher false-negative rate
   
-  - increased keypoint and bounding box placement error (to be fixed)
+  - increased keypoint and bounding box placement error
   
 * reduced keypoint placement accuracy when paws are closely spaced
-* UI windows are not automatically brought to the foreground on Microsoft Windows and macOS (to be fixed).
 
 
 
@@ -117,6 +152,16 @@ The pth file can be custom trained using detectron2.
 | opencv import error | The repo uses opencv-python-headless; try `pip install opencv-python-headless` or `pip install --upgrade opencv-python-headless`. |
 | GPU not detected | Check NVIDIA drivers and CUDA toolkit; run `python -c "import torch; print(torch.cuda.is_available())"` |
 
+---
+## Application notes for the ImageSequenceExporter UI
+
+This UI tool allows you to collect corrected predictions and metadata from images and videos, and saves them into a database.
+
+IMPORTANT: THE UI DOES NOT REMEMBER PREVIOUSLY SAVED PREDICTIONS DURING RUNTIME.
+Navigating back to earlier predictions is not possible because the UI works strictly in a feed-forward manner.
+Note that every click on "Export Cropped" creates an entry. 
+Workflow:
+     IMAGE --> prediction --> UI: correction + labels --> DATABASE ENTRY
 
 ---
 

@@ -1,0 +1,16 @@
+numpy
+requests
+pandas
+scipy
+matplotlib
+scikit-learn
+statsmodels
+pycircstat2
+opencv-python-headless
+
+[dev]
+pytest>=7.0
+pytest-cov
+flake8
+black
+ruff

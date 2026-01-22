@@ -627,6 +627,15 @@ class paw_statistics():
         self.centers = np.delete(self.centers, killDx, axis=0)
         self.label_db = self.label_db.drop(self.label_db.index[killDx]).reset_index(drop=True)
         self.consistency_check()
+    
+    def delete_index(self,idx):
+        self.pts = np.delete(self.pts, idx, axis=0)
+        self.angles = np.delete(self.angles, idx, axis=0)
+        self.boxes = np.delete(self.boxes, idx, axis=0)
+        self.centers = np.delete(self.centers, idx, axis=0)
+        self.label_db = self.label_db.drop(index=self.label_db.index[idx])
+        self.consistency_check()
+        
             
     def consistency_check(self):
         a = len(self.label_db) == self.pts.shape[0]
@@ -3846,7 +3855,63 @@ class paw_statistics():
             print("Load operation cancelled")
 
         self.consistency_check()
+        
+    def merge_data_zip(self,filename=None):
+        if filename is None:
+            root = tk.Tk()
+            root.withdraw()  # Hide the main tkinter window
             
+            filename = filedialog.askopenfilename(filetypes=[("Zip files", "*.zip")])
+            root.destroy()
+        else:
+            filename = Path(filename)
+        if filename:
+            try:
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    # Extract zip into temp directory
+                    with zipfile.ZipFile(filename, 'r') as zip_ref:
+                        zip_ref.extractall(tmpdir)
+    
+                    # Load MATLAB arrays
+                    self.pts = np.vstack((self.pts, scipy.io.loadmat(os.path.join(tmpdir, "pts.mat"))["pts"]))
+                    self.boxes = np.vstack((self.boxes,scipy.io.loadmat(os.path.join(tmpdir, "boxes.mat"))["boxes"]))
+                    self.centers = np.vstack((self.centers,scipy.io.loadmat(os.path.join(tmpdir, "centers.mat"))["centers"]))
+                    self.p_dists = np.vstack((self.p_dists,scipy.io.loadmat(os.path.join(tmpdir, "p_dists.mat"))["p_dists"]))
+                    self.stat_vector = np.vstack((self.stat_vector,scipy.io.loadmat(os.path.join(tmpdir, "stat_vector.mat"))["stat_vector"]))
+                    self.angles = np.vstack((self.angles,scipy.io.loadmat(os.path.join(tmpdir, "angles.mat"))["angles"]))
+    
+                    # Load dataframe
+                    new_df = pd.read_csv(os.path.join(tmpdir, "label_db.csv"))
+
+                    if hasattr(self, "label_db") and self.label_db is not None:
+                        self.label_db = pd.concat([self.label_db, new_df], axis=0, ignore_index=True)
+                    else:
+                        self.label_db = new_df.reset_index(drop=True)
+    
+                print(f"Data loaded from {filename}")
+            except Exception as e:
+                print(f"An error occurred while loading data: {e}")
+                return None, None
+        else:
+            print("Load operation cancelled")
+
+        self.consistency_check()
+    def merge_data(self,obj):
+            
+        # Load MATLAB arrays
+        self.pts = np.vstack((self.pts,obj.pts))
+        self.boxes = np.vstack((self.boxes,obj.boxes))
+        self.centers = np.vstack((self.centers,obj.centers))
+        self.p_dists = np.vstack((self.p_dists,obj.p_dists))
+        self.stat_vector = np.vstack((self.stat_vector,obj.stat_vector))
+        self.angles = np.vstack((self.angles,obj.angles))
+
+        if hasattr(self, "label_db") and self.label_db is not None:
+            self.label_db = pd.concat([self.label_db, obj.label_db], axis=0, ignore_index=True)
+        else:
+            self.label_db = obj.label_db.reset_index(drop=True)
+        self.consistency_check()
+        
     def load_from_matlab(self):
         root = tk.Tk()
         root.withdraw()  # Hide the main tkinter window

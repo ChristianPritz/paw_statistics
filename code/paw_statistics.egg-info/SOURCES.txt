@@ -1,0 +1,8 @@
+README.md
+setup.cfg
+setup.py
+code/paw_statistics.egg-info/PKG-INFO
+code/paw_statistics.egg-info/SOURCES.txt
+code/paw_statistics.egg-info/dependency_links.txt
+code/paw_statistics.egg-info/requires.txt
+code/paw_statistics.egg-info/top_level.txt

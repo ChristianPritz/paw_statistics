@@ -18,6 +18,7 @@ Modules:
 - paw_statistics.py
 - ImageSequenceExporter.py
 - interactive_plot_UI.py
+- DataFrameViewerUI.py
 - plotter_UI.py
 """
 
@@ -29,5 +30,6 @@ from .paw_statistics import *
 from .ImageSequenceExporter import *
 from .interactive_plot_UI import *
 from .plotter_UI import *
+from .DataFrameViewerUI import *
 
 __all__ = []
