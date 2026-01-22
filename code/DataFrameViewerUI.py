@@ -264,13 +264,13 @@ class DataFrameViewerUI:
         # Model path
         labeled_entry(
             main,
-            "Select hardware for inference: CPU or GPU (cuda = GPU) ",
+            "Specify the path to the model",
             model_path_var,
             browse_model_path,
         )
     
         # Device
-        ttk.Label(main, text="Specify the path to the model").pack(anchor="w", pady=(10, 2))
+        ttk.Label(main, text="Select hardware for inference: CPU or GPU (cuda = GPU) ").pack(anchor="w", pady=(10, 2))
         device_cb = ttk.Combobox(
             main,
             values=["cpu", "cuda"],
