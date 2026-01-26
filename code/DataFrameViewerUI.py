@@ -156,18 +156,32 @@ class DataFrameViewerUI:
             self.tree.column(col, width=120, anchor="center", stretch=True)
     
         # -------------------------------
-        # 3) Insert rows + build index map
+        # 1) Enforce consistency first
         # -------------------------------
-        self._row_index_map = []
-    
-        for i, (idx, row) in enumerate(self.display_df.iterrows()):
-            self._row_index_map.append(idx)
+        self._sync_indices_and_check()
+        
+        # -------------------------------
+        # 2) Define columns
+        # -------------------------------
+        self.tree["columns"] = list(self.display_df.columns)
+        
+        for col in self.display_df.columns:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=120, anchor="center", stretch=True)
+        
+        # -------------------------------
+        # 3) Insert rows (POSitional indices only)
+        # -------------------------------
+        for i in range(len(self.display_df)):
+            row = self.display_df.iloc[i]
             self.tree.insert(
                 "",
                 tk.END,
-                iid=str(i),
+                iid=str(i),          
                 values=list(row),
             )
+        
+        self.current_idx = None
 
         # -------------------------------
         # 4) Reset selection state
@@ -342,18 +356,35 @@ class DataFrameViewerUI:
             print("Exporter closed, continuing...")
             
             self.backend.merge_data(app.paw_stats)
+
+            self._sync_indices_and_check()
             self.load_dataframe(self.backend.label_db, self.current_cols)
             
             
             
         ttk.Button(main, text="Confirm", command=on_confirm).pack(pady=25)
-    
+
     
     def on_row_selected(self, event):
         selected = self.tree.selection()
         if selected:
             self.current_idx = int(selected[0])
             # print("Current idx:", self.current_idx)
+
+    def _assert_full_consistency(self):
+        n = len(self.backend.label_db)
+    
+        assert len(self.display_df) == n, "display_df length mismatch"
+        assert self.backend.boxes.shape[0] == n, "boxes length mismatch"
+        assert self.backend.pts.shape[0] == n, "pts length mismatch"
+
+        # test one random row
+        if n > 0:
+            i = np.random.randint(0, n)
+            _ = self.backend.label_db.iloc[i]
+            _ = self.backend.boxes[i]
+            _ = self.backend.pts[i]    
+
 
     def correct_entry(self):
         bbox = self.backend.boxes[self.current_idx]
@@ -397,25 +428,23 @@ class DataFrameViewerUI:
         if self.current_idx is None:
             messagebox.showwarning("Warning", "No entry selected.")
             return
-
-        if self.backend.label_db is None:
-            return
-        
-        
-        confirm = messagebox.askyesno("Confirm delete",
-                                      f"Delete entry at index {self.current_idx}?")
+    
+        confirm = messagebox.askyesno(
+            "Confirm delete",
+            f"Delete entry at index {self.current_idx}?"
+        )
         if not confirm:
             return
-
-        # delete from original DF
-        #self.label_db = self.label_db.drop(index=self.current_idx)
+    
+        # ---- delete in backend (positional) ----
         self.backend.delete_index(self.current_idx)
-        # delete from display DF
-        self.display_df = self.display_df.drop(index=self.current_idx)
-
-        # remove from tree
-        self.tree.delete(str(self.current_idx))
-
+    
+        # ---- resync everything ----
+        self._sync_indices_and_check()
+    
+        # ---- reload table ----
+        self.load_dataframe(self.backend.label_db, self.current_cols)
+    
         self.current_idx = None
 
     def load_dataframe_dialog(self):
@@ -428,7 +457,9 @@ class DataFrameViewerUI:
         self.backend.save_data_zip()
     
     def merge_data(self):
-        self.backend.merge_data_zip()
+        self.backend.merge_data(app.paw_stats)
+
+        self._sync_indices_and_check()
         self.load_dataframe(self.backend.label_db, self.current_cols)
 
         
@@ -566,6 +597,49 @@ class DataFrameViewerUI:
             # fallback: return original string if casting fails
             return val
     
+    def _sync_indices_and_check(self):
+        """
+        Enforce:
+          - backend.label_db index = 0..N-1
+          - display_df is strict column-subset of backend.label_db
+          - sizes are consistent
+        """
+    
+        # -------------------------
+        # Reset backend index
+        # -------------------------
+        if self.backend.label_db is not None:
+            self.backend.label_db = self.backend.label_db.reset_index(drop=True)
+    
+        # -------------------------
+        # Safety check for backend arrays
+        # -------------------------
+        n = len(self.backend.label_db)
+    
+        if hasattr(self.backend, "boxes") and len(self.backend.boxes) != n:
+            raise RuntimeError("Mismatch: boxes length != label_db length")
+    
+        if hasattr(self.backend, "pts") and len(self.backend.pts) != n:
+            raise RuntimeError("Mismatch: pts length != label_db length")
+    
+        # -------------------------
+        # Rebuild display_df strictly from backend
+        # -------------------------
+        if self.current_cols is None:
+            self.display_df = self.backend.label_db.copy()
+            self.current_cols = list(self.display_df.columns)
+        else:
+            # ensure only valid columns
+            valid_cols = [c for c in self.current_cols if c in self.backend.label_db.columns]
+            self.current_cols = valid_cols
+            self.display_df = self.backend.label_db[valid_cols].copy()
+    
+        # -------------------------
+        # Final consistency check
+        # -------------------------
+        if len(self.display_df) != len(self.backend.label_db):
+            raise RuntimeError("display_df and backend.label_db length mismatch")
+        
     
     def open_correction_window(
         self,
@@ -618,9 +692,34 @@ class DataFrameViewerUI:
         left_frame = ttk.Frame(main_frame)
         left_frame.pack(side="left", fill="both", expand=True, padx=5, pady=5)
     
-        right_frame = ttk.Frame(main_frame)
-        right_frame.pack(side="right", fill="y", padx=5, pady=5)
-    
+        # ------------------------------------------------------------------
+        # Scrollable RIGHT frame (metadata + buttons)
+        # ------------------------------------------------------------------
+        right_container = ttk.Frame(main_frame)
+        right_container.pack(side="right", fill="y", padx=5, pady=5)
+        
+        canvas_right = tk.Canvas(right_container, width=300)
+        scrollbar = ttk.Scrollbar(right_container, orient="vertical", command=canvas_right.yview)
+        
+        scrollable_frame = ttk.Frame(canvas_right)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas_right.configure(
+                scrollregion=canvas_right.bbox("all")
+            )
+        )
+        
+        canvas_right.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas_right.configure(yscrollcommand=scrollbar.set)
+        
+        canvas_right.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # This is now your working right frame
+        right_frame = scrollable_frame
+        
+        
         # ------------------------------------------------------------------
         # Image display (LEFT)
         # ------------------------------------------------------------------

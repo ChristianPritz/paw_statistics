@@ -628,13 +628,41 @@ class paw_statistics():
         self.label_db = self.label_db.drop(self.label_db.index[killDx]).reset_index(drop=True)
         self.consistency_check()
     
-    def delete_index(self,idx):
-        self.pts = np.delete(self.pts, idx, axis=0)
-        self.angles = np.delete(self.angles, idx, axis=0)
-        self.boxes = np.delete(self.boxes, idx, axis=0)
+    def delete_index(self, idx):
+        """
+        Delete one or multiple entries by *positional index*.
+        Keeps numpy arrays and pandas DataFrame strictly aligned.
+        """
+    
+        # Allow single int or list/array of indices
+        if np.isscalar(idx):
+            idx = [idx]
+        else:
+            idx = list(idx)
+    
+        n = len(self.pts)
+    
+        # Safety check: all indices valid
+        for i in idx:
+            if i < 0 or i >= n:
+                raise IndexError(f"delete_index: index {i} out of range (0..{n-1})")
+    
+        # Sort descending so deletion order never shifts positions
+        idx = sorted(idx, reverse=True)
+    
+        # Delete from numpy arrays (positional)
+        self.pts     = np.delete(self.pts,     idx, axis=0)
+        self.angles  = np.delete(self.angles,  idx, axis=0)
+        self.boxes   = np.delete(self.boxes,   idx, axis=0)
         self.centers = np.delete(self.centers, idx, axis=0)
-        self.label_db = self.label_db.drop(index=self.label_db.index[idx])
+    
+        # Delete from DataFrame by *position*, then reset index
+        self.label_db = self.label_db.drop(self.label_db.index[idx])
+        self.label_db = self.label_db.reset_index(drop=True)
+    
+        # Final consistency check
         self.consistency_check()
+
         
             
     def consistency_check(self):
