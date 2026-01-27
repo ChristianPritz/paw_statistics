@@ -457,7 +457,8 @@ class DataFrameViewerUI:
         self.backend.save_data_zip()
     
     def merge_data(self):
-        self.backend.merge_data(app.paw_stats)
+        
+        self.backend.merge_data_zip()
 
         self._sync_indices_and_check()
         self.load_dataframe(self.backend.label_db, self.current_cols)
