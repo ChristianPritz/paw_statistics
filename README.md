@@ -88,6 +88,15 @@ python verify_installation.py
 ```
 
 ---
+## Upcoming changes
+
+* retraining the model with more instances or migrating to YOLO to mitigate the mapping issues (i.e. paws not recognized). 
+* google colab demonstrator to run inference without installation 
+* tutorial video  
+* many bug fixes
+
+
+---
 ## Known issues
 
 * The deployed model (model_torch.pt) performs less accurately than the Detectron2 version (model.pth) due to limitations in model tracing, resulting in:
@@ -98,7 +107,6 @@ python verify_installation.py
   
 * reduced keypoint placement accuracy when paws are closely spaced
 * UI windows are not automatically brought to the foreground on Microsoft Windows and macOS (to be fixed).
-
 
 
 ## Optional Detectron2 installation

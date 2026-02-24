@@ -327,7 +327,7 @@ class DataFrameViewerUI:
         # Output path
         labeled_entry(
             main,
-            "Specify the path for image and data export",
+            "Specify the path where cropped images are stored",
             output_path_var,
             browse_output_path,
         )
@@ -347,7 +347,8 @@ class DataFrameViewerUI:
                             image_path_var.get(),
                             metadata,
                             self.detector_settings,
-                            width=500)
+                            width=500,
+                            image_save_dir=output_path_var.get())
 
             # WAIT here until the exporter window is closed
             self.master.wait_window(app.root)

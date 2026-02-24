@@ -23,7 +23,8 @@ from paw_statistics import paw_statistics
 
 class ImageSequenceExporter:
     def __init__(self,parent, image_dir, metadata, detector_settings,
-                 width=300, factor=3, prefix="", paw_stats=None):
+                 width=300, factor=3, prefix="", paw_stats=None,
+                 image_save_dir=None):
 
         if parent is not None:        
             self.root = tk.Toplevel(parent)
@@ -37,7 +38,10 @@ class ImageSequenceExporter:
         self.dataframe = pd.DataFrame(columns=list(metadata.keys()) +
                                       ["image_name", "source_image", "crop_index"])
         
-        p,_ = os.path.split(self.image_dir)
+        if image_save_dir is None: 
+            p,_ = os.path.split(self.image_dir)
+        else: 
+            p = image_save_dir
  
         self.output_dir = p # serves as default path
         os.makedirs(self.output_dir, exist_ok=True)
@@ -205,16 +209,34 @@ class ImageSequenceExporter:
         self.tolerance_entry.insert(0, str(self.tolerance))
         self.tolerance_entry.pack(pady=2)
     
-        ttk.Button(self.meta_col2, text="Fix predictions",
-                   command=self.fix_predictions).pack(pady=5)
-        ttk.Button(self.meta_col2, text="Place points manually",
-           command=self.place_keypoints).pack(pady=5)
-    
-        ttk.Button(self.meta_col2, text="Define file name",
-                   command=self.define_file_name).pack(pady=5)
-        ttk.Button(self.meta_col2, text="Save & Exit",
-                   command=self.save_and_exit).pack(pady=10)
-    
+        # ---------------- CONTROL BUTTON FRAME ----------------
+        button_frame = ttk.Frame(self.meta_col2)
+        button_frame.pack(fill="x", pady=10)
+        
+        # Make buttons same width
+        BTN_WIDTH = 22
+        
+        self.btn_fix = ttk.Button(button_frame, text="Fix predictions",
+                                  command=self.fix_predictions, width=BTN_WIDTH)
+        self.btn_fix.pack(fill="x", pady=3)
+        
+        self.btn_manual = ttk.Button(button_frame, text="Place points manually",
+                                     command=self.place_keypoints, width=BTN_WIDTH)
+        self.btn_manual.pack(fill="x", pady=3)
+        
+        self.btn_filename = ttk.Button(button_frame, text="Define file name",
+                                       command=self.define_file_name, width=BTN_WIDTH)
+        self.btn_filename.pack(fill="x", pady=3)
+        
+        # NEW BUTTON
+        self.btn_crop = ttk.Button(button_frame, text="Crop image",
+                                   command=self.crop_image_mode, width=BTN_WIDTH)
+        self.btn_crop.pack(fill="x", pady=3)
+        
+        self.btn_save_exit = ttk.Button(button_frame, text="Save & Exit",
+                                        command=self.save_and_exit, width=BTN_WIDTH)
+        self.btn_save_exit.pack(fill="x", pady=10)
+            
         # ---------------- COLUMN 1: METADATA FIELDS ----------------
         ttk.Label(self.meta_col1, text="Metadata:",
                   font=("TkDefaultFont", 10, "bold")).pack(pady=5)
@@ -734,56 +756,172 @@ class ImageSequenceExporter:
         # Saving the data on the hard disk 
         
         self.save_data()
-        
-        
-   
-    def place_keypoints(self):
+    
+    def crop_image_mode(self):
         """
-        Simple ROI drawing tool: click–drag rectangle on the image canvas.
-        Stores ROI in self.manual_roi.
+        Activates 2-click ROI tool to crop the current frame.
+        After second click:
+            - ROI is mapped to original resolution
+            - Image is cropped
+            - update_frame(override=crop) is called
         """
+    
         self.manual_roi = None
         self.manual_roi_start = None
         self.roi_rect = None
-
-        def on_mouse_down(event):
-            self.manual_roi_start = (event.x, event.y)
-            if self.roi_rect is not None:
-                self.canvas.delete(self.roi_rect)
-                self.roi_rect = None
-
-        def on_mouse_drag(event):
+    
+        def on_mouse_click(event):
+    
+            # FIRST CLICK
+            if self.manual_roi_start is None:
+                self.manual_roi_start = (event.x, event.y)
+    
+                if self.roi_rect is not None:
+                    self.canvas.delete(self.roi_rect)
+                    self.roi_rect = None
+    
+            # SECOND CLICK
+            else:
+                x0, y0 = self.manual_roi_start
+                x1, y1 = event.x, event.y
+    
+                if x1 < x0:
+                    x0, x1 = x1, x0
+                if y1 < y0:
+                    y0, y1 = y1, y0
+    
+                # Draw final rectangle
+                if self.roi_rect is not None:
+                    self.canvas.delete(self.roi_rect)
+    
+                self.roi_rect = self.canvas.create_rectangle(
+                    x0, y0, x1, y1, outline="orange", width=2
+                )
+    
+                # Map ROI to original image coordinates
+                scale_y, scale_x = self.scaler
+    
+                X0 = int(x0 * scale_x)
+                X1 = int(x1 * scale_x)
+                Y0 = int(y0 * scale_y)
+                Y1 = int(y1 * scale_y)
+    
+                frame = self.current_frame
+                H, W = frame.shape[:2]
+    
+                X0 = max(0, min(W - 1, X0))
+                X1 = max(0, min(W - 1, X1))
+                Y0 = max(0, min(H - 1, Y0))
+                Y1 = max(0, min(H - 1, Y1))
+    
+                if X1 <= X0 or Y1 <= Y0:
+                    messagebox.showwarning("Invalid ROI", "ROI outside bounds.")
+                    return
+    
+                cropped = frame[Y0:Y1, X0:X1].copy()
+    
+                # Cleanup bindings
+                self.canvas.unbind("<Button-1>")
+                self.canvas.unbind("<Motion>")
+    
+                self.manual_roi_start = None
+    
+                # IMPORTANT: override current frame
+                self.current_frame = cropped
+                self.update_frame(override=cropped)
+    
+        def on_mouse_move(event):
             if self.manual_roi_start is None:
                 return
+    
             x0, y0 = self.manual_roi_start
             x1, y1 = event.x, event.y
+    
             if self.roi_rect is not None:
                 self.canvas.delete(self.roi_rect)
+    
+            self.roi_rect = self.canvas.create_rectangle(
+                x0, y0, x1, y1, outline="orange", width=2
+            )
+    
+        # Activate bindings
+        self.canvas.bind("<Button-1>", on_mouse_click)
+        self.canvas.bind("<Motion>", on_mouse_move)
+    
+        print("Crop mode: click once to start, click again to crop.")
+   
+    def place_keypoints(self):
+        """
+        Two-click ROI drawing tool:
+        1st click = starting corner
+        2nd click = opposite corner
+        Stores ROI in self.manual_roi.
+        """
+    
+        self.manual_roi = None
+        self.manual_roi_start = None
+        self.roi_rect = None
+    
+        def on_mouse_click(event):
+            # FIRST CLICK → store starting point
+            if self.manual_roi_start is None:
+                self.manual_roi_start = (event.x, event.y)
+    
+                # Remove old rectangle if exists
+                if self.roi_rect is not None:
+                    self.canvas.delete(self.roi_rect)
+                    self.roi_rect = None
+
+                print("ROI start:", self.manual_roi_start)
+    
+            # SECOND CLICK → finalize ROI
+            else:
+                x0, y0 = self.manual_roi_start
+                x1, y1 = event.x, event.y
+    
+                self.manual_roi = (x0, y0, x1, y1)
+
+                print("Manual ROI:", self.manual_roi)
+    
+                # Final rectangle draw
+                if self.roi_rect is not None:
+                    self.canvas.delete(self.roi_rect)
+    
+                self.roi_rect = self.canvas.create_rectangle(
+                    x0, y0, x1, y1, outline="lime", width=2
+                )
+
+                # Reset start for next usage
+                self.manual_roi_start = None
+    
+                # Cleanup bindings
+                self.canvas.unbind("<Button-1>")
+                self.canvas.unbind("<Motion>")
+                
+               
+                self.prepare_manual_keypoints()
+               
+                #self.prepare_manual_keypoints()
+    
+        def on_mouse_move(event):
+            # Preview rectangle after first click
+            if self.manual_roi_start is None:
+                return
+    
+            x0, y0 = self.manual_roi_start
+            x1, y1 = event.x, event.y
+    
+            if self.roi_rect is not None:
+                self.canvas.delete(self.roi_rect)
+    
             self.roi_rect = self.canvas.create_rectangle(
                 x0, y0, x1, y1, outline="lime", width=2
             )
-
-        def on_mouse_up(event):
-            if self.manual_roi_start is None:
-                return
-            x0, y0 = self.manual_roi_start
-            x1, y1 = event.x, event.y
-            self.manual_roi = (x0, y0, x1, y1)
-
-            print("Manual ROI:", self.manual_roi)
-
-            # CLEAN UP
-            self.canvas.unbind("<Button-1>")
-            self.canvas.unbind("<B1-Motion>")
-            self.canvas.unbind("<ButtonRelease-1>")
-            self.prepare_manual_keypoints()
-
-        # Bind events
-        self.canvas.bind("<Button-1>", on_mouse_down)
-        self.canvas.bind("<B1-Motion>", on_mouse_drag)
-        self.canvas.bind("<ButtonRelease-1>", on_mouse_up)
-
-        print("Draw ROI: Click + drag on the image.")
+    
+        # Bind only click + motion (no drag needed)
+        self.canvas.bind("<Button-1>", on_mouse_click)
+        self.canvas.bind("<Motion>", on_mouse_move)
+        print("Draw ROI: Click once for start, click again for end.")
         
     def prepare_manual_keypoints(self):
         #excise image
@@ -834,15 +972,15 @@ class ImageSequenceExporter:
     
         # Temporarily override correction inputs
         self.current_pts = pts
-        self.current_boxes = [[0, 0, crop.shape[1], crop.shape[0]]]  # full ROI
+        self.current_boxes = [[bxs[0][0], bxs[0][1], bxs[0][2], bxs[0][3]]]  # full ROI
         self.current_orig_boxes = self.current_boxes
         self.current_paw_images = [crop]
-        self.current_classes = [["manual", 1.0]]
+        self.current_classes = [np.nan]
         self.current_box_selection = 0
         self.offset_x = [0]
         self.offset_y = [0]
-        
-        
+        self.export_button.state(["!disabled"])
+       
 
     def define_file_name(self):
         # Ask for save path (includes filename)
