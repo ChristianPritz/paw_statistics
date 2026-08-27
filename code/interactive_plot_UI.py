@@ -6,9 +6,6 @@ Created on Thu Aug 22 16:07:07 2024
 @author: wormulon
 """
 
-
-
-
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -51,6 +48,13 @@ class interactive_plot_UI:
         self.connectivity = connectivity
         self.colors = colors
         self.handle_size = 5  # Size of the corner handles for resizing
+        # ---------------------------------------------
+        # Keypoint placement guide
+        # ---------------------------------------------
+        self.guide_radius = 10          # initial radius (pixels)
+        self.guide_min = 1
+        self.guide_max = 150
+                
         self.canvas = tk.Canvas(self.window,width=self.image.width, height=self.image.height)
                
         self.canvas.pack()
@@ -60,6 +64,17 @@ class interactive_plot_UI:
         
         
         self.canvas.pack(fill=tk.BOTH, expand=True)
+        # Radius slider for keypoint placement guide
+        self.radius_slider = tk.Scale(
+            self.window,
+            from_=self.guide_min,
+            to=self.guide_max,
+            orient=tk.HORIZONTAL,
+            label="Guide Radius",
+            command=self.on_radius_change
+        )
+        self.radius_slider.set(self.guide_radius)
+        self.radius_slider.pack(fill=tk.X, padx=5, pady=5)
 
         self.imgtk = ImageTk.PhotoImage(image=self.image)
 
@@ -90,7 +105,9 @@ class interactive_plot_UI:
         self.window.after(500, self.on_ui_initialized)
         self.window.wait_window(self.window)
 
-    
+    def on_radius_change(self, value):
+        self.guide_radius = int(value)
+        self.draw_points_and_bbox()
     
     def end_it(self):
 
@@ -155,9 +172,36 @@ class interactive_plot_UI:
                 point_colors.append(self.colors[int(a[0][0])])
             
         
-        for idx,point in enumerate(self.points):
-            self.canvas.create_oval(point[0] - 3.5, point[1] - 3.5, point[0] + 3.5, point[1] + 3.5, fill=point_colors[idx], tags="points")
+        point_radius = 3.5
+
+        for idx, point in enumerate(self.points):
         
+            # --------------------------------------------------
+            # Placement guide (large hollow circle)
+            # --------------------------------------------------
+            if self.selected_point is None or self.selected_point == idx:
+                self.canvas.create_oval(
+                    point[0] - self.guide_radius,
+                    point[1] - self.guide_radius,
+                    point[0] + self.guide_radius,
+                    point[1] + self.guide_radius,
+                    outline=point_colors[idx],
+                    width=2,
+                    tags="points"
+                )
+        
+            # --------------------------------------------------
+            # Actual keypoint
+            # --------------------------------------------------
+            self.canvas.create_oval(
+                point[0] - point_radius,
+                point[1] - point_radius,
+                point[0] + point_radius,
+                point[1] + point_radius,
+                fill=point_colors[idx],
+                outline=point_colors[idx],
+                tags="points"
+            )
    
         x, y, w, h = self.bbox
         self.canvas.create_rectangle(x, y, x + w, y + h, outline="green", tags="bbox")

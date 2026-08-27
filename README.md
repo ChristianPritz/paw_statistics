@@ -1,6 +1,7 @@
 # paw_statistics
 
 is a Python framework for analysis of static hind paw postures.
+NOTE: The repository is being updated: first update will be fully completed by 30/08/2026, second update mid September 2026. We apologize for any inconvenience. 
 
 ## Paw keypoint segmentation and Analysis Pipeline
 
@@ -13,15 +14,16 @@ This toolkit, implemented in PyTorch, enables you to run inference on images of 
 - Inference and visualization of predicted keypoints
 - UI for post-hoc correction of predicted keypoints
 - Quantitative analysis (distances, angles, regression, clustering, circular stats)
-- Example Jupyter notebook for quick demonstration
+- Local Tkinter application and an all-in-one Google Colab notebook
+- YOLO object detection plus hind/front specialist pose models
 
 ---
 
 ## Requirements
 
-Inference requires PyTorch and the packages listed in requirements.txt, including core Python dependencies such as numpy, pandas, scipy, matplotlib, scikit-learn, pycircstat2, and opencv-python-headless.
+Inference requires Python 3.10 or newer, Tkinter, PyTorch, Ultralytics, and the packages listed in `requirements.txt`. Tkinter is normally supplied by Python itself; Conda users can install it with `conda install tk` if needed.
 
-Detectron2 **is not required for inference**, but custom training of the model does require a full Detectron2 installation.
+The current inference pipeline uses YOLO models through Ultralytics.
 
 Use the virtual environment setup instructions above to keep dependencies isolated.
 
@@ -71,8 +73,7 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 pip install -r requirements.txt
 ```
 5) Install into the environment
-- Example notebooks and example scripts demonstrate how to run inference (once Detectron2 is installed), correct keypoints, and run statistical analyses.
-- For development, use an editable install (if you add setup files):
+- For development, use an editable install:
 ```bash
 pip install -e .
 ```
@@ -82,52 +83,23 @@ pip install -e .
 python fetch_from_osf.py
 ```
 
+The default public OSF resource ID used by the example is `dc745`.
+
 8) Verify installation and GPU (if applicable)
 ```bash
 python verify_installation.py
 ```
 
----
-## Upcoming changes
-
-* retraining the model with more instances or migrating to YOLO to mitigate the mapping issues (i.e. paws not recognized). 
-* google colab demonstrator to run inference without installation 
-* tutorial video  
-* many bug fixes
-
 
 ---
 ## Known issues
 
-* The deployed model (model_torch.pt) performs less accurately than the Detectron2 version (model.pth) due to limitations in model tracing, resulting in:
-  
-  - a higher false-negative rate (to be fixed)
-  
-  - increased keypoint and bounding box placement error (to be fixed)
-  
 * reduced keypoint placement accuracy when paws are closely spaced
-* UI windows are not automatically brought to the foreground on Microsoft Windows and macOS (to be fixed).
+* Colab sessions are temporary. Download saved ZIP/CSV results before disconnecting the runtime.
 
-
-## Optional Detectron2 installation
-If you want use the detectron2 model (model.pth) for custom keypoint segmentation please install detectron2 according to the installation page: https://detectron2.readthedocs.io/en/latest/tutorials/install.html 
-
-The pth file can be custom trained using detectron2. 
-
----
-
-## Troubleshooting (common issues)
-
-| Issue | Solution |
-|---|---|
-| torch not found | Reinstall PyTorch with the official command for your CUDA or CPU configuration. |
-| detectron2 build failed | Ensure PyTorch and CUDA versions match and a C/C++ build toolchain (nvcc, gcc/clang, build essentials) is available. Consider using a pre-built wheel for your platform. |
-| opencv import error | The repo uses opencv-python-headless; try `pip install opencv-python-headless` or `pip install --upgrade opencv-python-headless`. |
-| GPU not detected | Check NVIDIA drivers and CUDA toolkit; run `python -c "import torch; print(torch.cuda.is_available())"` |
 
 
 ---
-
 
 ## License & Contact
 Please add a LICENSE file if you plan to publish. For questions or issues, open an issue on GitHub: https://github.com/ChristianPritz/paw_statistics/issues

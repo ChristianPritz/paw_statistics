@@ -6,11 +6,11 @@
     "animal_id": "",
     "DOB": "01.01.26",
     "gender": [
-        "MALE",
-        "FEMALE"
+        "male",
+        "female"
     ],
     "genotype": [
-        "WT",
+        "wt",
         "IMPA3KO"
     ],
     "strain": "C57BL/6",
@@ -38,5 +38,9 @@
     "useful": [
         "yes",
         "no"
+    ],
+    "ant_or_post": [
+        "post",
+        "ant"
     ]
 }

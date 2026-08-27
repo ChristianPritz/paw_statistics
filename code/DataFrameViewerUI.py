@@ -7,16 +7,42 @@ Created on Mon Jan 19 17:15:32 2026
 """
 
 import tkinter as tk
-from paw_statistics import paw_statistics
+import tkinter.font as tkfont
+from .paw_statistics import paw_statistics
 from tkinter import ttk, filedialog, messagebox
 import pandas as pd
 import os,cv2,json,inspect
-from paw_statistics import paw_statistics
+from .paw_statistics import paw_statistics
 from PIL import Image, ImageTk
 import numpy as np
 import pandas as pd 
-from interactive_plot_UI import interactive_plot_UI
-from ImageSequenceExporter import ImageSequenceExporter
+from .interactive_plot_UI import interactive_plot_UI
+from .paw_UI import ImageSequenceExporter
+
+
+def _show_in_foreground(window, parent=None):
+    """Raise a newly-created Tk window without keeping it permanently on top."""
+    if parent is not None:
+        window.transient(parent)
+
+    window.lift()
+    try:
+        window.attributes("-topmost", True)
+    except tk.TclError:
+        pass
+
+    def release_topmost():
+        if not window.winfo_exists():
+            return
+        try:
+            window.attributes("-topmost", False)
+        except tk.TclError:
+            pass
+        window.lift()
+        window.focus_force()
+
+    window.after_idle(release_topmost)
+
 
 class DataFrameViewerUI:
     def __init__(self, master=None):
@@ -30,12 +56,16 @@ class DataFrameViewerUI:
         
 
         if not os.path.isfile(settings_path):
-            settings_path = filedialog.askopenfilename(defaultextension=".json",
-                                                       filetypes=[("Json files","*.json")])
+            settings_path = filedialog.askopenfilename(
+                parent=master,
+                defaultextension=".json",
+                filetypes=[("Json files", "*.json")],
+            )
         self.detector_settings = load_settings_json(settings_path)    
         self.master = master
         self.master.title("DataFrame Viewer")
         self.master.geometry("1000x600")
+        _show_in_foreground(self.master)
 
 
         self.label_db = None          # original loaded dataframe
@@ -43,6 +73,8 @@ class DataFrameViewerUI:
         self.current_idx = None
         self.current_cols = None
         self.loaded_path = None
+        self.filter_columns = [tk.StringVar(), tk.StringVar()]
+        self.filter_terms = [tk.StringVar(), tk.StringVar()]
         
         
         #--------------- Backend --------------------------
@@ -58,6 +90,38 @@ class DataFrameViewerUI:
         self.main_pane.add(self.left_frame, weight=4)
         self.main_pane.add(self.right_frame, weight=1)
 
+        # ---------- Filters ----------
+        self.filter_frame = ttk.Frame(self.left_frame)
+        self.filter_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=4, pady=4)
+        self.filter_frame.columnconfigure(1, weight=1)
+        self.filter_frame.columnconfigure(3, weight=1)
+
+        self.filter_boxes = []
+        self.filter_entries = []
+        for filter_number in range(2):
+            offset = filter_number * 2
+            box = ttk.Combobox(
+                self.filter_frame,
+                textvariable=self.filter_columns[filter_number],
+                state="readonly",
+                width=18,
+            )
+            box.grid(row=0, column=offset, padx=(0, 4), sticky="ew")
+            entry = ttk.Entry(
+                self.filter_frame,
+                textvariable=self.filter_terms[filter_number],
+            )
+            entry.grid(row=0, column=offset + 1, padx=(0, 8), sticky="ew")
+            box.bind("<<ComboboxSelected>>", self._on_filter_changed)
+            entry.bind("<KeyRelease>", self._on_filter_changed)
+            self.filter_boxes.append(box)
+            self.filter_entries.append(entry)
+
+        self.btn_clear_filters = ttk.Button(
+            self.filter_frame, text="Clear filters", command=self.clear_filters
+        )
+        self.btn_clear_filters.grid(row=0, column=4, sticky="ew")
+
         # ---------- Table + scrollbars ----------
         self.tree = ttk.Treeview(self.left_frame, show="headings")
         self.tree.bind("<<TreeviewSelect>>", self.on_row_selected)
@@ -68,11 +132,11 @@ class DataFrameViewerUI:
         self.tree.configure(yscrollcommand=self.v_scroll.set,
                             xscrollcommand=self.h_scroll.set)
 
-        self.tree.grid(row=0, column=0, sticky="nsew")
-        self.v_scroll.grid(row=0, column=1, sticky="ns")
-        self.h_scroll.grid(row=1, column=0, sticky="ew")
+        self.tree.grid(row=1, column=0, sticky="nsew")
+        self.v_scroll.grid(row=1, column=1, sticky="ns")
+        self.h_scroll.grid(row=2, column=0, sticky="ew")
 
-        self.left_frame.rowconfigure(0, weight=1)
+        self.left_frame.rowconfigure(1, weight=1)
         self.left_frame.columnconfigure(0, weight=1)
 
         # ---------- Buttons ----------
@@ -107,86 +171,95 @@ class DataFrameViewerUI:
     # ==========================================================
 
  
-    def load_dataframe(self, df, columns=None):
-        """Load (or reload) a dataframe into the UI with optional column filtering."""
-    
-        # -------------------------------
-        # 0) Destroy and recreate Treeview
-        # -------------------------------
-        self.tree.destroy()
-        self.v_scroll.destroy()
-        self.h_scroll.destroy()
-    
-        self.tree = ttk.Treeview(self.left_frame, show="headings")
-        self.tree.bind("<<TreeviewSelect>>", self.on_row_selected)
-    
-        self.v_scroll = ttk.Scrollbar(
-            self.left_frame, orient=tk.VERTICAL, command=self.tree.yview
-        )
-        self.h_scroll = ttk.Scrollbar(
-            self.left_frame, orient=tk.HORIZONTAL, command=self.tree.xview
-        )
-    
-        self.tree.configure(
-            yscrollcommand=self.v_scroll.set,
-            xscrollcommand=self.h_scroll.set,
-        )
-    
-        self.tree.grid(row=0, column=0, sticky="nsew")
-        self.v_scroll.grid(row=0, column=1, sticky="ns")
-        self.h_scroll.grid(row=1, column=0, sticky="ew")
-    
-        # -------------------------------
-        # 1) Build display dataframe
-        # -------------------------------
+    def load_dataframe(self, df, columns=None, selected_idx=None, view_state=None):
+        """Reload the table while retaining backend row identities and UI state."""
         if columns is not None:
-            self.display_df = df[columns].copy()
-            self.current_cols = list(columns)
-        else:
-            self.display_df = df.copy()
-            self.current_cols = list(self.display_df.columns)
-    
-        # -------------------------------
-        # 2) Define columns
-        # -------------------------------
-        self.tree["columns"] = list(self.display_df.columns)
-    
-        for col in self.display_df.columns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=120, anchor="center", stretch=True)
-    
-        # -------------------------------
-        # 1) Enforce consistency first
-        # -------------------------------
-        self._sync_indices_and_check()
-        
-        # -------------------------------
-        # 2) Define columns
-        # -------------------------------
-        self.tree["columns"] = list(self.display_df.columns)
-        
-        for col in self.display_df.columns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=120, anchor="center", stretch=True)
-        
-        # -------------------------------
-        # 3) Insert rows (POSitional indices only)
-        # -------------------------------
-        for i in range(len(self.display_df)):
-            row = self.display_df.iloc[i]
-            self.tree.insert(
-                "",
-                tk.END,
-                iid=str(i),          
-                values=list(row),
-            )
-        
-        self.current_idx = None
+            self.current_cols = [col for col in columns if col in df.columns]
+        elif self.current_cols is None:
+            self.current_cols = list(df.columns)
 
-        # -------------------------------
-        # 4) Reset selection state
-        # -------------------------------
+        self._sync_indices_and_check()
+        self._update_filter_columns()
+        self._apply_filters()
+        self._populate_tree(selected_idx=selected_idx, view_state=view_state)
+
+    def _update_filter_columns(self):
+        columns = list(self.backend.label_db.columns)
+        for box in self.filter_boxes:
+            box["values"] = columns
+        for variable in self.filter_columns:
+            if variable.get() not in columns:
+                variable.set(columns[0] if columns else "")
+
+    def _apply_filters(self):
+        """Build a view whose index remains the positional backend row index."""
+        source = self.backend.label_db
+        mask = pd.Series(True, index=source.index)
+        for column_var, term_var in zip(self.filter_columns, self.filter_terms):
+            column = column_var.get()
+            term = term_var.get().strip()
+            if term and column in source.columns:
+                values = source[column].fillna("").astype(str)
+                mask &= values.str.contains(term, case=False, regex=False, na=False)
+        self.display_df = source.loc[mask, self.current_cols].copy()
+
+    def _populate_tree(self, selected_idx=None, view_state=None):
+        self.tree.delete(*self.tree.get_children())
+        self.tree["columns"] = list(self.display_df.columns)
+        table_font = tkfont.nametofont("TkDefaultFont")
+        for col in self.display_df.columns:
+            self.tree.heading(col, text=col)
+            # Size from representative content, but keep exceptionally long
+            # values from making a column unwieldy. Disabling stretch ensures
+            # that many columns use the horizontal scrollbar instead of being
+            # compressed to fit the window.
+            sample = self.display_df[col].head(200).fillna("").astype(str)
+            content_width = max(
+                [table_font.measure(str(col))] +
+                [table_font.measure(value) for value in sample]
+            )
+            column_width = min(max(content_width + 24, 110), 300)
+            self.tree.column(
+                col,
+                width=column_width,
+                minwidth=110,
+                anchor="center",
+                stretch=False,
+            )
+
+        for backend_idx, row in self.display_df.iterrows():
+            self.tree.insert("", tk.END, iid=str(backend_idx), values=list(row))
+
         self.current_idx = None
+        if selected_idx is not None and str(selected_idx) in self.tree.get_children():
+            iid = str(selected_idx)
+            self.tree.selection_set(iid)
+            self.tree.focus(iid)
+            self.current_idx = selected_idx
+
+        self.master.update_idletasks()
+        if view_state is not None:
+            self.tree.yview_moveto(view_state[0])
+            self.tree.xview_moveto(view_state[1])
+        elif self.current_idx is not None:
+            self.tree.see(str(self.current_idx))
+
+    def _capture_view_state(self):
+        yview = self.tree.yview()
+        xview = self.tree.xview()
+        return (yview[0] if yview else 0.0, xview[0] if xview else 0.0)
+
+    def _on_filter_changed(self, _event=None):
+        selected_idx = self.current_idx
+        view_state = self._capture_view_state()
+        self._apply_filters()
+        self._populate_tree(selected_idx=selected_idx, view_state=view_state)
+
+    def clear_filters(self):
+        for term in self.filter_terms:
+            term.set("")
+        self._apply_filters()
+        self._populate_tree()
     
     def unique_values_by_column(self, df, dropna=True, as_str=False):
         values = {}
@@ -195,6 +268,7 @@ class DataFrameViewerUI:
         for col in df.columns:
             vals = df[col]
             dtypes[col] = vals.dtype   # store original dtype
+            has_missing = vals.isna().any()
     
             if dropna:
                 vals = vals.dropna()
@@ -203,6 +277,11 @@ class DataFrameViewerUI:
     
             if as_str:
                 uniq = [str(v) for v in uniq]
+
+            # Comboboxes need an explicit string representation for missing
+            # values; pandas' NaN itself cannot be selected reliably in Tk.
+            if has_missing and "nan" not in uniq:
+                uniq.append("nan")
     
             values[col] = uniq
     
@@ -215,6 +294,7 @@ class DataFrameViewerUI:
         win = tk.Toplevel(self.master)
         win.title("Add paws settings")
         win.geometry("600x600")
+        _show_in_foreground(win, self.master)
         win.grab_set()   # modal
     
         main = ttk.Frame(win)
@@ -223,9 +303,21 @@ class DataFrameViewerUI:
         # -------------------------------------------------
         # Variables
         # -------------------------------------------------
-        model_path_var   = tk.StringVar(value = find_model())
+        object_model_path_var   = tk.StringVar(
+            value=self.detector_settings.get("detector_model_path", find_model())
+        )
+        hind_model_path_var = tk.StringVar(
+            value=self.detector_settings.get("hind_model_path", "")
+        )
+        front_model_path_var = tk.StringVar(
+            value=self.detector_settings.get("front_model_path", "")
+        )
+        metadata_path_var = tk.StringVar(
+            value=self.detector_settings.get("metadata_path", "")
+        )
+        
         device_var       = tk.StringVar(value="cpu")
-        metadata_path_var = tk.StringVar()
+        #metadata_path_var = tk.StringVar()
         isVideo_var      = tk.BooleanVar(value=False)
         image_path_var   = tk.StringVar()
         output_path_var  = tk.StringVar()
@@ -234,25 +326,35 @@ class DataFrameViewerUI:
         # Helper browse functions
         # -------------------------------------------------
         def browse_model_path():
-            path = filedialog.askopenfilename()
+            path = filedialog.askopenfilename(parent=win)
             if path:
-                model_path_var.set(path)
+                object_model_path_var.set(path)
+
+        def browse_hind_model_path():
+            path = filedialog.askopenfilename(parent=win)
+            if path:
+                hind_model_path_var.set(path)
+
+        def browse_front_model_path():
+            path = filedialog.askopenfilename(parent=win)
+            if path:
+                front_model_path_var.set(path)
     
         def browse_metadata_path():
-            path = filedialog.askopenfilename()
+            path = filedialog.askopenfilename(parent=win)
             if path:
                 metadata_path_var.set(path)
     
         def browse_image_path():
             if isVideo_var.get():
-                path = filedialog.askopenfilename()
+                path = filedialog.askopenfilename(parent=win)
             else:
-                path = filedialog.askdirectory()
+                path = filedialog.askdirectory(parent=win)
             if path:
                 image_path_var.set(path)
     
         def browse_output_path():
-            path = filedialog.askdirectory()
+            path = filedialog.askdirectory(parent=win)
             if path:
                 output_path_var.set(path)
     
@@ -278,9 +380,23 @@ class DataFrameViewerUI:
         # Model path
         labeled_entry(
             main,
-            "Specify the path to the model",
-            model_path_var,
+            "Specify the path to the object detection YOLO model",
+            object_model_path_var,
             browse_model_path,
+        )
+
+        labeled_entry(
+            main,
+            "Specify the path to the hind paw specialist YOLO model",
+            hind_model_path_var,
+            browse_hind_model_path,
+        )
+
+        labeled_entry(
+            main,
+            "Specify the path to the front paw specialist YOLO model",
+            front_model_path_var,
+            browse_front_model_path,
         )
     
         # Device
@@ -336,11 +452,31 @@ class DataFrameViewerUI:
         # Confirm button
         # -------------------------------------------------
         def on_confirm():
+            missing_models = [
+                label for label, value in (
+                    ("object detection model", object_model_path_var.get()),
+                    ("hind paw specialist model", hind_model_path_var.get()),
+                    ("front paw specialist model", front_model_path_var.get()),
+                )
+                if not value
+            ]
+            if missing_models:
+                messagebox.showwarning(
+                    "Missing model path",
+                    "Please specify: " + ", ".join(missing_models),
+                    parent=win,
+                )
+                return
     
-            metadata = load_settings_json(metadata_path_var.get())
-            self.detector_settings["model_path"] = model_path_var.get()
+            
+            #self.detector_settings["model_path"] = model_path_var.get()
+            self.detector_settings["detector_model_path"] = object_model_path_var.get()
+            self.detector_settings["hind_model_path"] = hind_model_path_var.get()
+            self.detector_settings["front_model_path"] = front_model_path_var.get()
+            self.detector_settings["metadata_path"] = metadata_path_var.get()
             self.detector_settings["device"] = device_var.get()
-         
+            
+            metadata = load_settings_json(metadata_path_var.get())
             win.destroy()
             
             app = ImageSequenceExporter(self.master,
@@ -375,7 +511,8 @@ class DataFrameViewerUI:
     def _assert_full_consistency(self):
         n = len(self.backend.label_db)
     
-        assert len(self.display_df) == n, "display_df length mismatch"
+        assert len(self.display_df) <= n, "display_df cannot exceed label_db length"
+        assert self.display_df.index.isin(self.backend.label_db.index).all()
         assert self.backend.boxes.shape[0] == n, "boxes length mismatch"
         assert self.backend.pts.shape[0] == n, "pts length mismatch"
 
@@ -388,12 +525,17 @@ class DataFrameViewerUI:
 
 
     def correct_entry(self):
+        if self.current_idx is None:
+            messagebox.showwarning("Warning", "No entry selected.", parent=self.master)
+            return
+
+        selected_idx = self.current_idx
+        view_state = self._capture_view_state()
         bbox = self.backend.boxes[self.current_idx]
         pts = self.backend.pts[self.current_idx]
         u_vals, col_dtypes = self.unique_values_by_column(self.backend.label_db,
                                                           as_str=True)
-        
-        selected_columns = self.column_selection_popup("correct",self.backend.label_db)
+        selected_columns = list(self.backend.label_db.columns)
         image_name = self.backend.label_db["image_name"].iloc[self.current_idx]
         i_path = self.backend.label_db["image_dir"].iloc[self.current_idx]
         if isinstance(i_path,str):
@@ -423,36 +565,61 @@ class DataFrameViewerUI:
             self.backend.boxes[self.current_idx] = out[2]
             self.backend.pts[self.current_idx] = out[1]
             self.backend.label_db.iloc[self.current_idx]
-            self.load_dataframe(self.backend.label_db, self.current_cols)
+            self.load_dataframe(
+                self.backend.label_db,
+                self.current_cols,
+                selected_idx=selected_idx,
+                view_state=view_state,
+            )
         
     def delete_entry(self):
         if self.current_idx is None:
-            messagebox.showwarning("Warning", "No entry selected.")
+            messagebox.showwarning("Warning", "No entry selected.", parent=self.master)
             return
     
         confirm = messagebox.askyesno(
             "Confirm delete",
-            f"Delete entry at index {self.current_idx}?"
+            f"Delete entry at index {self.current_idx}?",
+            parent=self.master,
         )
         if not confirm:
             return
     
+        deleted_idx = self.current_idx
+        view_state = self._capture_view_state()
+        visible_indices = list(self.display_df.index)
+        visible_position = visible_indices.index(deleted_idx)
+
+        # Prefer the entry below; at the bottom of the view, select the one above.
+        if visible_position + 1 < len(visible_indices):
+            next_idx = visible_indices[visible_position + 1]
+        elif visible_position > 0:
+            next_idx = visible_indices[visible_position - 1]
+        else:
+            next_idx = None
+
         # ---- delete in backend (positional) ----
-        self.backend.delete_index(self.current_idx)
+        self.backend.delete_index(deleted_idx)
+
+        # Backend indices are reset after deletion, so later rows shift by one.
+        if next_idx is not None and next_idx > deleted_idx:
+            next_idx -= 1
     
         # ---- resync everything ----
         self._sync_indices_and_check()
     
         # ---- reload table ----
-        self.load_dataframe(self.backend.label_db, self.current_cols)
-    
-        self.current_idx = None
+        self.load_dataframe(
+            self.backend.label_db,
+            self.current_cols,
+            selected_idx=next_idx,
+            view_state=view_state,
+        )
 
     def load_dataframe_dialog(self):
         self.backend.load_data_zip()
         self.loaded_path = os.getcwd()
-
-        self.column_selection_popup("load",self.backend.label_db)
+        self.load_dataframe(self.backend.label_db)
 
     def save_dataframe_dialog(self):
         self.backend.save_data_zip()
@@ -487,7 +654,8 @@ class DataFrameViewerUI:
         # Otherwise ask the user
         answer = messagebox.askyesnocancel(
             "Unsaved data",
-            "There is data in the session.\n\nDo you want to save before closing?"
+            "There is data in the session.\n\nDo you want to save before closing?",
+            parent=self.master,
         )
     
         # Cancel → abort closing
@@ -499,78 +667,20 @@ class DataFrameViewerUI:
             try:
                 self.backend.save_data_zip()
             except Exception as e:
-                messagebox.showerror("Save error", f"Could not save data:\n{e}")
+                messagebox.showerror("Save error", f"Could not save data:\n{e}", parent=self.master)
                 return   # abort closing if save failed
 
         # No or successful save → close
         self.master.quit()
         self.master.destroy()
 
-    # ==========================================================
-    # ================= Column Selection UI ====================
-    # ==========================================================
-
-    def column_selection_popup(self, phase, df):
-        popup = tk.Toplevel(self.master)
-        popup.title("Select columns for display")
-        popup.geometry("300x400")
-        popup.grab_set()   # <-- make it modal
-    
-        container = ttk.Frame(popup)
-        container.pack(fill=tk.BOTH, expand=True)
-    
-        canvas = tk.Canvas(container)
-        scrollbar = ttk.Scrollbar(container, orient=tk.VERTICAL, command=canvas.yview)
-        scroll_frame = ttk.Frame(canvas)
-    
-        scroll_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-    
-        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-    
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    
-        col_vars = {}
-        for col in df.columns:
-            var = tk.BooleanVar(value=True)
-            chk = ttk.Checkbutton(scroll_frame, text=col, variable=var)
-            chk.pack(anchor="w", padx=10, pady=2)
-            col_vars[col] = var
-    
-        selected_cols = []   # <-- buffer to return result
-    
-        def on_confirm():
-            nonlocal selected_cols
-            selected_cols = [c for c, v in col_vars.items() if v.get()]
-    
-            if not selected_cols:
-                messagebox.showwarning("Warning", "Select at least one column.")
-                return
-    
-            popup.destroy()
-    
-        btn_confirm = ttk.Button(popup, text="Confirm", command=on_confirm)
-        btn_confirm.pack(pady=10)
-    
-        # ⏸️ block until popup is closed
-        self.master.wait_window(popup)
-    
-        # phase-specific behavior
-        if phase == "load" and selected_cols:
-            self.load_dataframe(self.backend.label_db, selected_cols)
-            self.current_cols = selected_cols
-    
-        return selected_cols
-    
     def cast_to_dtype(self, val, dtype):
         """
         Cast string coming from Tk widget back to original pandas dtype.
         """
-        if pd.isna(val) or val == "":
+        if pd.isna(val) or val == "" or (
+            isinstance(val, str) and val.strip().lower() == "nan"
+        ):
             return np.nan
     
         try:
@@ -625,22 +735,20 @@ class DataFrameViewerUI:
             raise RuntimeError("Mismatch: pts length != label_db length")
     
         # -------------------------
-        # Rebuild display_df strictly from backend
+        # Rebuild display_df strictly from backend, retaining active filters.
         # -------------------------
         if self.current_cols is None:
-            self.display_df = self.backend.label_db.copy()
-            self.current_cols = list(self.display_df.columns)
-        else:
-            # ensure only valid columns
-            valid_cols = [c for c in self.current_cols if c in self.backend.label_db.columns]
-            self.current_cols = valid_cols
-            self.display_df = self.backend.label_db[valid_cols].copy()
+            self.current_cols = list(self.backend.label_db.columns)
+        # ensure only valid columns
+        valid_cols = [c for c in self.current_cols if c in self.backend.label_db.columns]
+        self.current_cols = valid_cols
+        self._apply_filters()
     
         # -------------------------
         # Final consistency check
         # -------------------------
-        if len(self.display_df) != len(self.backend.label_db):
-            raise RuntimeError("display_df and backend.label_db length mismatch")
+        if not self.display_df.index.isin(self.backend.label_db.index).all():
+            raise RuntimeError("display_df contains rows not present in backend.label_db")
         
     
     def open_correction_window(
@@ -670,6 +778,7 @@ class DataFrameViewerUI:
         win = tk.Toplevel(self.master)
         win.title("Correction window")
         win.geometry("1000x600")
+        _show_in_foreground(win, self.master)
         win.grab_set()  # modal
     
         # ------------------------------------------------------------------
@@ -727,7 +836,13 @@ class DataFrameViewerUI:
         # ------------------------------------------------------------------
         canvas = tk.Canvas(left_frame, bg="black")
         canvas.pack(fill="both", expand=True)
-    
+
+        image_available = False
+        display_offset_x = 0
+        display_offset_y = 0
+        connect_logic = self.detector_settings["connect_logic"]
+        colors_ui = self.detector_settings["colors_ui"]
+
         try:
             img = Image.open(image_path).convert("RGB")
             orig_w, orig_h = img.width, img.height
@@ -739,96 +854,84 @@ class DataFrameViewerUI:
             canvas.config(width=new_size[0], height=new_size[1])
             canvas.create_image(0, 0, anchor="nw", image=imgtk)
             canvas.image = imgtk
-            # ------------------------------------------------------------------
-            # Overlay plotting: points + bbox
-            # ------------------------------------------------------------------
-            connect_logic = self.detector_settings["connect_logic"]
-            colors_ui = self.detector_settings["colors_ui"]
-            
-            # scale factors: original image → displayed image
-            #sx = new_size[0] / img.width
-            #sy = new_size[1] / img.height
+            image_available = True
             sx = new_size[0] / orig_w
             sy = new_size[1] / orig_h
-            
-            
-            def draw_points_and_bbox_on_canvas():
-                canvas.delete("points")
-                canvas.delete("bbox")
-            
-                if current_pts is None or current_bbox is None:
-                    return
-            
-                # ----------------------------
-                # Draw connectivity lines
-                # ----------------------------
-                for i, conn in enumerate(connect_logic):
-                    p1 = current_pts[conn[0], :2]
-                    p2 = current_pts[conn[1], :2]
-            
-                    x1, y1 = p1[0] * sx, p1[1] * sy
-                    x2, y2 = p2[0] * sx, p2[1] * sy
-            
-                    canvas.create_line(
-                        x1, y1, x2, y2,
-                        fill=colors_ui[i],
-                        width=3,
-                        tags="points"
-                    )
-            
-                # ----------------------------
-                # Point colors (same logic as your UI)
-                # ----------------------------
-                searchMat = np.asarray(connect_logic)
-                point_colors = []
-            
-                for i in range(len(current_pts)):
-                    if i == 0:
-                        point_colors.append(colors_ui[-1])
-                    else:
-                        a = np.where(searchMat == i)
-                        point_colors.append(colors_ui[int(a[0][0])])
-            
-                # ----------------------------
-                # Draw keypoints
-                # ----------------------------
-                for i, pt in enumerate(current_pts):
-                    x, y = pt[0] * sx, pt[1] * sy
-                    canvas.create_oval(
-                        x - 3.5, y - 3.5,
-                        x + 3.5, y + 3.5,
-                        fill=point_colors[i],
-                        outline="",
-                        tags="points"
-                    )
-            
-                # ----------------------------
-                # Draw bounding box
-                # ----------------------------
-                bx, by, ex, ey = current_bbox[0]
-                #ex = bx + ex
-                #ey = by + ey
-                
-                x1 = bx * sx
-                y1 = by * sy
-                x2 = ex * sx
-                y2 = ey * sy
-                
-                #x2 = (bx + bw) * sx
-                #y2 = (by + bh) * sy
-            
-                canvas.create_rectangle(
+
+        except (FileNotFoundError, OSError):
+            # Keep metadata correction usable even when its source image is gone.
+            canvas.config(width=480, height=480)
+            canvas.create_text(
+                240,
+                22,
+                text="Image not found. Keypoint correction mode disabled.",
+                fill="white",
+                font=("TkDefaultFont", 10, "bold"),
+            )
+
+            # Fit the stored virtual skeleton into the otherwise empty canvas.
+            coordinates = []
+            if current_pts is not None and len(current_pts):
+                coordinates.append(np.asarray(current_pts)[:, :2])
+            if current_bbox is not None and np.asarray(current_bbox).size >= 4:
+                box = np.asarray(current_bbox).reshape(-1, 4)[0]
+                coordinates.append(box.reshape(2, 2))
+
+            if coordinates:
+                all_coordinates = np.vstack(coordinates)
+                max_x = max(float(np.nanmax(all_coordinates[:, 0])), 1.0)
+                max_y = max(float(np.nanmax(all_coordinates[:, 1])), 1.0)
+                scale = min(460 / max_x, 410 / max_y, 1.0)
+                sx = sy = scale
+                display_offset_x = 10
+                display_offset_y = 50
+            else:
+                sx = sy = 1.0
+
+        def draw_points_and_bbox_on_canvas():
+            canvas.delete("points")
+            canvas.delete("bbox")
+
+            if current_pts is None or current_bbox is None:
+                return
+
+            for i, conn in enumerate(connect_logic):
+                p1 = current_pts[conn[0], :2]
+                p2 = current_pts[conn[1], :2]
+                x1 = p1[0] * sx + display_offset_x
+                y1 = p1[1] * sy + display_offset_y
+                x2 = p2[0] * sx + display_offset_x
+                y2 = p2[1] * sy + display_offset_y
+                canvas.create_line(
                     x1, y1, x2, y2,
-                    outline="lime",
-                    width=2,
-                    tags="bbox"
+                    fill=colors_ui[i], width=3, tags="points"
                 )
 
-            
-            
-        
-        except Exception as e:
-            messagebox.showerror("Image error", f"Could not load image:\n{e}")
+            searchMat = np.asarray(connect_logic)
+            point_colors = []
+            for i in range(len(current_pts)):
+                if i == 0:
+                    point_colors.append(colors_ui[-1])
+                else:
+                    matches = np.where(searchMat == i)
+                    point_colors.append(colors_ui[int(matches[0][0])])
+
+            for i, pt in enumerate(current_pts):
+                x = pt[0] * sx + display_offset_x
+                y = pt[1] * sy + display_offset_y
+                canvas.create_oval(
+                    x - 3.5, y - 3.5, x + 3.5, y + 3.5,
+                    fill=point_colors[i], outline="", tags="points"
+                )
+
+            bx, by, ex, ey = current_bbox[0]
+            canvas.create_rectangle(
+                bx * sx + display_offset_x,
+                by * sy + display_offset_y,
+                ex * sx + display_offset_x,
+                ey * sy + display_offset_y,
+                outline="lime", width=2, tags="bbox"
+            )
     
         # ------------------------------------------------------------------
         # Dropdown fields (RIGHT)
@@ -853,7 +956,9 @@ class DataFrameViewerUI:
                 state="readonly",
             )
             current_val = row[col]
-            if current_val in values:
+            if pd.isna(current_val) and "nan" in values:
+                cb.set("nan")
+            elif str(current_val) in values:
                 cb.set(current_val)
             elif len(values) > 0:
                 cb.set(values[0])
@@ -898,7 +1003,7 @@ class DataFrameViewerUI:
    
    
             except Exception as e:
-                messagebox.showerror("Correction error", str(e))
+                messagebox.showerror("Correction error", str(e), parent=win)
     
         def on_save():
             updated_row = row.copy()
@@ -927,11 +1032,14 @@ class DataFrameViewerUI:
         btn_frame = ttk.Frame(right_frame)
         btn_frame.pack(pady=10, fill="x")
     
-        ttk.Button(
+        change_paw_button = ttk.Button(
             btn_frame,
             text="Change paw",
             command=on_change_paw,
-        ).pack(fill="x", pady=2)
+        )
+        change_paw_button.pack(fill="x", pady=2)
+        if not image_available:
+            change_paw_button.state(["disabled"])
     
         ttk.Button(
             btn_frame,

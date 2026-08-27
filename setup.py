@@ -1,5 +1,5 @@
 from pathlib import Path
-from setuptools import setup, find_packages
+from setuptools import setup
 
 HERE = Path(__file__).parent
 
@@ -21,8 +21,9 @@ setup(
     long_description=(HERE / "README.md").read_text(encoding="utf-8") if (HERE / "README.md").exists() else "",
     long_description_content_type="text/markdown",
     author="Christian Pritz",
-    packages=find_packages(where="code"),   # 👈 search inside the 'code' folder
-    package_dir={"": "code"},               # 👈 tell setuptools that packages live in 'code'
+    packages=["paw_statistics"],
+    package_dir={"paw_statistics": "code"},
+    package_data={"paw_statistics": ["*.json"]},
     include_package_data=True,
     install_requires=parse_requirements(),
     extras_require={

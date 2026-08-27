@@ -7,7 +7,7 @@ Created on Fri May  3 09:33:04 2024
 
 @author: Christian Pritz
 """
-import os,cv2,copy,math,itertools,shutil, tempfile,zipfile,pickle
+import os,cv2,copy,math,itertools,shutil, tempfile,zipfile,pickle,sys
 import numpy as np
 import pandas as pd
 import tkinter as tk
@@ -28,12 +28,16 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, f1_score, accuracy_score
 from statsmodels.stats.multitest import multipletests
-
+from matplotlib import font_manager
+from matplotlib.font_manager import FontProperties
 
 class paw_statistics():
     # maybe chain up some of the parameters in a dictionary....................
     # replace all the settings == Nonene checks with key in dict checks.
+    __version__ = "1.01"
+
     def __init__(self,settings=None,columns=None):
+            
         if settings is None:
             settings = self.default_settings() 
             
@@ -160,7 +164,9 @@ class paw_statistics():
         
         print('[PAW STATISTICS] Initialized')
     
+   
     def default_settings(self):
+        def_path = os.getcwd()
         settings = {'connect_logic': [[0,     1],
                          [0,     3],
                          [0,     6],
@@ -225,7 +231,7 @@ class paw_statistics():
                              [0.40392157, 0.42352941, 0.3254902 ],
                              [0.40392157, 0.42352941, 0.3254902 ],
                              [0.40392157, 0.42352941, 0.3254902 ]],
-                    'plot_path': '/home/wormulon/Documents/paw pain manuscript/figures/plots',
+                    'plot_path': def_path + '/plots',
                     'plt_prp':self.default_plot_props(),
                     'session_id':'Analysis',
                     'mid_point':6,
@@ -865,7 +871,10 @@ class paw_statistics():
         result_df = pd.DataFrame(columns=['comparison_number','angle_number','group1','group2','mean1','mean2','delta','relative_delta','SD1','SD2','SD12','n1','n2','pVal','qVal','indicator'])
         angle_number = []
         counter = 0
-        for j in np.arange(self.angles.shape[2]):
+        n_angles = self.angles.shape[2]
+        for j in np.arange(n_angles):
+            
+            
             
             for i in enumerate(data_groups):
                 #print('criterion',i[1])
@@ -887,7 +896,9 @@ class paw_statistics():
             angle_data = self.clean_CI_circ(angle_data,units="degrees")
             
         
-        for j in np.arange(self.angles.shape[2]):                              # this iterates over all angles 
+        for j in np.arange(n_angles): 
+            if (j + 1) % 10 == 0 or j == n_angles - 1:
+                print(f"\rProgress: {100*(j+1)/n_angles:5.1f}%", end="", flush=True)                             # this iterates over all angles 
             idx = np.where(angle_number==j)
  
             #print('indices are',idx)
@@ -913,12 +924,15 @@ class paw_statistics():
 
                 if watson_williams:
                     
-
-                    # reconversion into degree because circ_median_ci errs on certain distribution when handed radians
-                    s1 = Circular(np.rad2deg(sample1),unit="degree")
-                    s2 = Circular(np.rad2deg(sample2),unit="degree")
-                    
-                    f_stats,pVal = watson_williams_test(circs=[s1, s2],verbose=False)
+                    try: 
+                        # reconversion into degree because circ_median_ci errs on certain distribution when handed radians
+                        s1 = Circular(np.rad2deg(sample1),unit="degree")
+                        s2 = Circular(np.rad2deg(sample2),unit="degree")
+                        ww_results = watson_williams_test(samples=[s1, s2],verbose=False)
+                        pVal = ww_results.pval
+                    except: 
+                        print("Comparison "+str(compNum)+" failed.")
+                        pVal = np.nan
                 else:
                     pVal, observed_stat = self.angular_randomization_test(sample1, sample2,num_permutations=permuts)
                 
@@ -946,6 +960,7 @@ class paw_statistics():
                 result_df = pd.concat([result_df.astype(fuse_df.dtypes), fuse_df], ignore_index=True, sort=False)
                 result_df = result_df.reset_index(drop=True)
         
+        print()
         labels = []
         for i in range(len(data_groups)):
             labels.append('-'.join(str(value) for value in data_groups[i].values()))
@@ -1087,8 +1102,17 @@ class paw_statistics():
             qs_i = qs[angs==ang]
             comp_i = comps[angs==ang]
             for idx_comp,comp in enumerate(u_comps):
-                data[idx_ang,idx_comp] = qs_i.iloc[np.where(comp_i==comp)[0]]
-        
+                match = qs_i.loc[comp_i == comp]
+
+                if len(match) == 1:
+                    data[idx_ang, idx_comp] = match.iloc[0]
+                elif len(match) == 0:
+                    data[idx_ang, idx_comp] = np.nan
+                else:
+                    raise ValueError(
+                        f"Multiple entries for angle={ang}, comparison={comp}"
+                    )
+                        
         return data
     
           
@@ -1424,9 +1448,10 @@ class paw_statistics():
     
     def pca_scatter(self,categories,labels,n_components,colors=None,
                     X_reduced=None,numeric_labels=False, combos=None,tag='',
-                    folder='',update_GM=False,plot_props=None):
+                    folder='',update_GM=False,plot_props=None,alpha=0.7,):
         
-              
+        if plot_props is None:
+            plot_props = self.default_plot_props()
         #plot the pc scatter grams ----------------------------------------
         def plot_cm(ax,x,y,labels,colors):
             unique_labels = np.unique(labels)
@@ -1470,7 +1495,7 @@ class paw_statistics():
                         X_reduced[:, i],
                         X_reduced[:, i+1],
                         c=label_colors,cmap='cool',
-                        alpha = 0.7
+                        alpha = alpha
                     )
                     fig.colorbar(cax,shrink=0.8)
                 else:
@@ -1479,7 +1504,7 @@ class paw_statistics():
                         X_reduced[:, i],
                         X_reduced[:, i+1],
                         c=label_colors,
-                        alpha = 0.7
+                        alpha = alpha
                     )
                 labelX = "PC " + str(i+1) + ' (' + str(np.round(self.pca.explained_variance_ratio_[i]*100,2))+'% of variance)' 
                 ax.set_xlabel(labelX)
@@ -1496,7 +1521,7 @@ class paw_statistics():
                 plt.show()
                 
                 
-                self.save_plot(fig,'PCA-component-scatter'+ '-' + str(i+1)+'-vs-'+ str(i+1) + tag, folder )
+                self.save_plot(fig,'PCA-component-scatter'+ '-' + str(i+1)+'-vs-'+ str(i+2) + tag, folder )
         else :
             print('[WARNING] Plotting combos will not update the group means.\n Do not plot group specific poses with combos enabled')
             for i in combos:
@@ -1507,7 +1532,7 @@ class paw_statistics():
                         X_reduced[:, i[0]],
                         X_reduced[:, i[1]],
                         c=label_colors,cmap='cool',
-                        alpha = 0.7
+                        alpha = alpha
                     )
                     fig.colorbar(cax,shrink=0.8)
                 else:
@@ -1516,7 +1541,7 @@ class paw_statistics():
                         X_reduced[:, i[0]],
                         X_reduced[:, i[1]],
                         c=label_colors,
-                        alpha = 0.7
+                        alpha = alpha
                     )
                 labelX = "PC " + str(i[0]+1) + ' (' + str(np.round(self.pca.explained_variance_ratio_[i[0]]*100,2))+'% of variance)' 
                 ax.set_xlabel(labelX)
@@ -1682,9 +1707,45 @@ class paw_statistics():
 #------------------------------------------------------------------------------
 # plotting functions
 #------------------------------------------------------------------------------
+    def load_custom_font(self,ttf_path, set_default=False):
+        """
+        Load a custom TrueType font into Matplotlib.
+    
+        Parameters
+        ----------
+        ttf_path : str or Path
+            Path to the .ttf font file.
+        set_default : bool, optional
+            If True, set this font as Matplotlib's default font.
+    
+        Returns
+        -------
+        FontProperties
+            A FontProperties object for use in plotting.
+        """
+        ttf_path = Path(ttf_path)
+    
+        if not ttf_path.exists():
+            raise FileNotFoundError(f"Font file not found: {ttf_path}")
+    
+        # Register the font
+        font_manager.fontManager.addfont(str(ttf_path))
+    
+        # Create FontProperties object
+        font = FontProperties(fname=str(ttf_path))
+    
+        if set_default:
+            plt.rcParams["font.family"] = font.get_name()
+    
+        self.font=font
+
+
     def scatter_distribution(self,labels, values, bins=30, spread=0.3,tag='',
                              folder='',plot_props=None,colors = None,alpha=0.7,
                              log_y=False):
+        
+        if plot_props is None:
+            plot_props = self.instantiate_plot_props()
         
         if colors is None:
             colors = np.random.random((100,3))
@@ -1698,12 +1759,8 @@ class paw_statistics():
         for i, label in enumerate(unique_labels):
             group_vals = values[labels == label]
             group_vals= np.delete(group_vals, np.isnan(group_vals))
-            # Histogram to understand density
-            [print(group_vals)]
             counts, bin_edges = np.histogram(group_vals, bins=bins)
             bin_indices = np.digitize(group_vals, bin_edges) - 1
-            print("BIN_indices:", bin_indices,len(bin_indices))
-            print("BIN_edges:", bin_edges,counts)
             x_vals = []
             y_vals = []
             bin_lengths = (counts-np.min(counts))/(np.max(counts)-np.min(counts))*spread
@@ -2039,50 +2096,141 @@ class paw_statistics():
                             xlim=None,ylim=None,plot_props=None, 
                             bin_values = None):
      
+        def align_to_reference(curve, reference):
+            """
+            Shift an entire angular trajectory by multiples of 360° so that it
+            stays as close as possible to the reference trajectory.
+        
+            Parameters
+            ----------
+            curve : (T,) array
+            reference : (T,) array
+        
+            Returns
+            -------
+            aligned : (T,) array
+            """
+        
+            aligned = curve.copy()
+        
+            valid = (~np.isnan(curve)) & (~np.isnan(reference))
+        
+            if not np.any(valid):
+                return aligned
+        
+            # Average offset between curves
+            diff = np.nanmean(reference[valid] - curve[valid])
+        
+            # Choose the nearest multiple of 360°
+            shift = 360 * np.round(diff / 360)
+        
+            aligned += shift
+        
+            return aligned
+        
+        
         def match_closest_bin(bin_width,values):
-            #print(values)
+      
             a = np.arange(0,np.max(values)+bin_width,bin_width)
             diff = np.abs(values[:, None] - a[None, :])
             matched_indices = np.argmin(diff, axis=1) 
             matched_values = a[matched_indices]
             return matched_values
+        def compute_sem(y, is_circular=False):
+            """
+            Compute SEM column-wise.
         
-        def plot_time(x,y,color,ax,plot_props):
+            Parameters
+            ----------
+            y : ndarray
+                Shape = (samples, timepoints)
+                Circular data should be in degrees.
+            is_circular : bool
+                If True, compute approximate circular SEM.
+        
+            Returns
+            -------
+            sem : ndarray
+                SEM for each column.
+            """
+        
+            # Number of valid observations
+            n = np.sum(~np.isnan(y), axis=0)
+        
+            if is_circular:
+        
+                # scipy expects radians
+                y_rad = np.deg2rad(y)
+        
+                # Approximate circular SD (returned in radians)
+                std = stats.circstd(
+                    y_rad,
+                    axis=0,
+                    nan_policy='omit'
+                )
+        
+                # Convert back to degrees
+                std = np.rad2deg(std)
+        
+            else:
+        
+                # Sample standard deviation
+                std = np.nanstd(
+                    y,
+                    axis=0,
+                    ddof=1
+                )
+        
+            sem = np.full_like(std, np.nan, dtype=float)
+        
+            valid = n > 1
+            sem[valid] = std[valid] / np.sqrt(n[valid])
+        
+            return sem
+        
+        
+        
+        def plot_time(x,y,color,ax,plot_props,reference_curve=None):
             
-            
-            
+        
             if CI:
                 if is_angular:
                     y = self.clean_CI_circ(y)
                 else:
                     y = self.clean_CI(y)
-             
-        
-            
+          
             
             if is_angular:
-                means = np.rad2deg(np.nanmean(np.deg2rad(y),axis=0))
+                means = np.rad2deg(stats.circmean(np.deg2rad(y),axis=0,nan_policy='omit'))
             else:
                 means = np.nanmean(y,axis=0)
             
-            
-            
-            
-            if plot_props["line_mean"]:
-                ax.plot(x, means, marker='+', color=color, linestyle='-', markersize=10)
-            #print('means are ',y)
-            
+
             if is_angular:
-                y_mean = np.rad2deg(stats.circmean(np.deg2rad(y), axis=0,nan_policy='omit'))
-                y_std = np.rad2deg(stats.circstd(np.deg2rad(y), axis=0,nan_policy='omit'))
+
+                yr = np.deg2rad(y)
+            
+                y_mean = np.rad2deg(
+                    stats.circmean(yr,
+                                   axis=0,
+                                   nan_policy='omit')
+                )
+            
+                y_std = np.rad2deg(
+                    stats.circstd(yr,
+                                  axis=0,
+                                  nan_policy='omit')
+                )
+                y_sem = compute_sem(y,True)
             else:
+            
                 y_mean = np.nanmean(y, axis=0)
                 y_std = np.nanstd(y, axis=0)
-            
-            num = np.sum(np.invert(np.isnan(y)),axis=0)
-            y_sem = np.divide(y_std,num)
+                y_sem = compute_sem(y,False)
+            # Number of non-NaN observations at each time point
+            num = np.sum(~np.isnan(y), axis=0)
+                 
     
-            #print(y_sem,'------------------------------')
             # Choose the metric
             metric = plot_props["metric"]
             if metric == 'STD':
@@ -2093,31 +2241,104 @@ class paw_statistics():
                 raise ValueError("Metric must be 'STD' or 'SEM'")
     
             # Plot the mean line
-            ax.plot(x, y_mean, color=color, label='Mean')
+            if is_angular:
+
+                # First make the trajectory internally continuous
+                y_plot = np.rad2deg(
+                    np.unwrap(np.deg2rad(y_mean))
+                )
+            
+                # Then align the whole trajectory to the reference
+                if reference_curve is not None:
+                    y_plot = align_to_reference(y_plot, reference_curve)
+            
+            else:
+            
+                y_plot = y_mean
+    
+            
+            if plot_props["line_mean"]:
+                ax.plot(
+                    x,
+                    y_plot,
+                    marker='+',
+                    linestyle='',
+                    color=color,
+                    markersize=10,
+                )
+            
+            
+            ax.plot(x,
+                    y_plot,
+                    color=color,
+                    label='Mean')
     
             # Plot the shaded region
-            ax.fill_between(x.flatten(), 
-                             y_mean - y_error, 
-                             y_mean + y_error, 
-                             color=color, 
-                             alpha=0.3, label=f'±1 {metric}')
+            if is_angular:
+
+                lower = y_plot - y_error
+                upper = y_plot + y_error
+            
+            else:
+            
+                lower = y_mean - y_error
+                upper = y_mean + y_error
+            
+            ax.fill_between(
+                x.flatten(),
+                lower,
+                upper,
+                color=color,
+                alpha=0.3
+            )
             
             if plot_props["scatter"]:
                 for i in range(0,x.size):
-                    #print(i)
-                    col = y[:,i] 
-                    t = np.tile(x[i],col.shape)
-                      
-                    #t = np.tile(x[i],(col.size,1)) ++ (np.random.random((col.size,1))*100-50) + offset
-                    #print(t.shape,col.shape)
+             
+                    col = y[:, i]
+                    t = np.tile(x[i], col.shape)
+                    
+                    if is_angular:
+                    
+                        # Remove NaNs
+                        valid = ~np.isnan(col)
+                    
+                        if np.any(valid):
+                    
+                            # Convert to radians
+                            col_rad = np.deg2rad(col[valid])
+                    
+                            # Unwrap around the plotted mean at this timepoint
+                            ref = np.deg2rad(y_plot[i])
+                    
+                            # Shift to reference frame
+                            col_shift = col_rad - ref
+                    
+                            # Wrap into [-pi, pi]
+                            col_shift = (col_shift + np.pi) % (2 * np.pi) - np.pi
+                    
+                            # Shift back
+                            col_plot = np.rad2deg(col_shift + ref)
+                    
+                            col2 = np.full_like(col, np.nan, dtype=float)
+                            col2[valid] = col_plot
+                    
+                        else:
+                            col2 = col
+                    
+                    else:
+                        col2 = col
+                    
                     ax.scatter(
-                        t, col,
-                        edgecolor=color,       
-                        facecolor='none',       
+                        t,
+                        col2,
+                        edgecolor=color,
+                        facecolor='none',
                         marker=plot_props["scatter_symbol"],
                         alpha=0.25,
-                        s=100                   
-                        )
+                        s=100
+                    )
+            return y_plot
             
         if isinstance(plot_props,type(None)):
             plot_props = {'metric':'STD','scatter':True,'scatter_symbol':'^','line_mean':True,
@@ -2146,10 +2367,10 @@ class paw_statistics():
         if not isinstance(bin_values,type(None)):
             timepoints = match_closest_bin(bin_values, timepoints)
         
-        print('################## consistency')
+
         
         fig,ax = plt.subplots(dpi=600,figsize=plot_props["figsize"])
-        #print(uni_groups)
+        reference_curve = None
         # assembling the data into n x timepoints matrix for each group. 
         for grpdx,i in enumerate(uni_groups):
             #print('the i is',i,i[0])
@@ -2157,17 +2378,14 @@ class paw_statistics():
             idcs = grp_id==i 
             #idcs = np.where(grp_id==i)
             
-            
-            #print(len(idcs[0]))
-            #print(y_data.shape)
+        
             #raw_y = y_data[idcs,:]
             #raw_time = time_stamps.reshape((time_stamps.size,1))[idcs,:]
             
             raw_y = y_data[idcs]
             #raw_time = time_stamps.reshape((time_stamps.size,1))[idcs]
             raw_time = time_stamps[idcs]
-            #print('################', grp_id, len(idcs), grpdx)
-            
+
             
             
             
@@ -2186,24 +2404,32 @@ class paw_statistics():
                 loc = np.where(raw_time == j)
                 dat = raw_y[loc]
                 
-                print('this is ',j,loc,dat.size)
+   
                 if dat.size > 0: 
                     ys[0:dat.size,idx] = dat.reshape((dat.size,))
                 
-            #print('the dat is',dat,ys.shape)
+     
             
             killDx = np.where(np.sum(np.isnan(ys),axis=0)>=ys.shape[0]-1)
-            #print(ys.shape)
+ 
             if len(killDx[0]) > 0:
-                #print('killing it')
-                #print(killDx[0])
                 ys = np.delete(ys,killDx[0],axis=1)
                 t = np.delete(t,killDx[0])
             
             
             
-                
-            plot_time(t,ys,colors[grpdx,:],ax,plot_props)
+           
+            current_curve = plot_time(
+                                        t,
+                                        ys,
+                                        colors[grpdx,:],
+                                        ax,
+                                        plot_props,
+                                        reference_curve
+                                    )
+            
+            if reference_curve is None:
+                reference_curve = current_curve
             
             
         if not isinstance(xlim,type(None)):
@@ -2352,21 +2578,24 @@ class paw_statistics():
 
 
 
-    def draw_confusion_matrix(self,conf_mat,relative=True,tag='',folder='',fontsize=18):
+    def draw_confusion_matrix(self,conf_mat,relative=True,tag='',folder='',fontsize=18,plot_props=None):
         
         if relative:
             conf_mat = conf_mat/np.tile(np.sum(conf_mat,axis=1),
                                         (conf_mat.shape[0],1)).transpose()
         
+        if plot_props is None:
+            plot_props = self.default_plot_props()
+            
         fig, ax = plt.subplots(dpi=600,figsize=(6, 6))
         plt.ylabel('ground truth')
         plt.xlabel('prediction')
         cax = ax.matshow(conf_mat, cmap='OrRd')
         #self.style_plot(plt, ax)
-        ax.set_xlabel('predicted',fontsize=self.plt_prp['fontsize'],
-                      fontweight=self.plt_prp['fontweight'] )       
-        ax.set_ylabel('actual',fontsize=self.plt_prp['fontsize'],
-                      fontweight=self.plt_prp['fontweight'] )  
+        ax.set_xlabel('predicted',fontsize=plot_props['fontsize'],
+                      fontweight=plot_props['fontweight'] )       
+        ax.set_ylabel('actual',fontsize=plot_props['fontsize'],
+                      fontweight=plot_props['fontweight'] )  
         
         #fig.colorbar(cax,shrink=0.8) #,shrink=0.6)
         
@@ -2387,10 +2616,11 @@ class paw_statistics():
         #fig.colorbar(cax)
         #ax.axis("off")
         cax.set_clim(0, 1)
-        old_prop = self.plt_prp["xtick_format"][3]
-        self.plt_prp["xtick_format"][3] = 'bottom'
-        self.style_plot(plt, ax)
-        self.plt_prp["xtick_format"][3] = old_prop
+        old_prop = plot_props["xtick_format"][3]
+        plot_props["xtick_format"][3] = 'bottom'
+        self.style_plot(plt, ax,plot_props = plot_props)
+        plot_props["xtick_format"][3] = old_prop
+        
         plt.show()
         if tag != '':
             self.save_plot(fig,'Confusion_matrix'+tag,folder)
@@ -2624,6 +2854,7 @@ class paw_statistics():
     
         # ---- Styling ----
         ax.set_aspect(1)
+        
         self.style_plot(plt, ax)
         plt.show()
         
@@ -2632,10 +2863,27 @@ class paw_statistics():
             self.save_plot(fig, 'Preds-vs-Actual' + tag, folder)
 
    
-          
+    def copy_props(self,p1,p2,extras=False):
+        keys = p1.keys()
+        for i in keys: 
+            if hasattr(p2,i):
+                p1[i] = p2[i]
+        if extras:
+            p1['figsize'] = p2['figsize']
+            p1['xlim'] =  p2['xlim']
+            p1['ylim'] = p2['ylim']
+            p1['yticks'] = p2['yticks']
+            p1['xticks'] = p2['xticks']
+            p1['fontname'] = p2['fontname']
+            p1['xlabel'] = p2['xlabel']
+            p1['ylabel'] = p2['ylabel']
+        return p1
+    
         
     #     plt.show()
     def style_plot(self, plt, ax, plot_props=None,show=True):
+        
+        
         if plot_props is None:
             plot_props = {}
     
@@ -2968,7 +3216,10 @@ class paw_statistics():
            
     
     
-    def analyze_residuals(self,residuals, bins=30,folder='',tag=''):
+    def analyze_residuals(self,residuals,
+                          bins=30,x_upshift=0.075,
+                          folder='',tag='',
+                          plot_props=None,xlim=None):
         """
         Analyze residuals:
         1. Plot histogram of residuals with ±1σ and ±3σ lines.
@@ -2985,6 +3236,8 @@ class paw_statistics():
         savefile : str or None, optional
             If provided, saves results (bin_edges, counts, avg_influence_per_bin).
         """
+        if plot_props is None:
+            plot_props = self.default_plot_props()
 
         residuals = np.asarray(residuals)
         n = len(residuals)
@@ -3033,21 +3286,29 @@ class paw_statistics():
         ax2.invert_yaxis()
 
         # Same x limits: from 0 to max residual bin edge
-        ax1.set_xlim(0, bin_edges[-1])
-        ax2.set_xlim(0, bin_edges[-1])
+        if xlim is None:
+            ax1.set_xlim(0, bin_edges[-1])
+            ax2.set_xlim(0, bin_edges[-1])
+        else:
+            ax1.set_xlim(0, xlim)
+            ax2.set_xlim(0, xlim)
+        
 
         plt.tight_layout()
-        self.style_plot(plt, ax1,show=False)
-        self.style_plot(plt, ax2)
+        for label in ax2.get_xticklabels():
+            x, y = label.get_position()
+            label.set_position((x, y + x_upshift)) 
+        
+        self.style_plot(plt, ax1,plot_props=plot_props,show=False)
+        self.style_plot(plt, ax2,plot_props=plot_props)
         self.save_plot(fig,tag+'_residual_diagnostics',folder)
     
     
     def find_colors(self,u_groups,groups,base_colors):
-        colors = []
+        clrs = []
         for i in groups:
-
-            colors.append(base_colors[int(np.where(u_groups==i)[0]),:])
-        return np.asarray(colors) 
+            clrs.append(base_colors[int(np.where(u_groups==i)[0][0]),:])
+        return np.asarray(clrs) 
                 
         
            
@@ -3384,6 +3645,358 @@ class paw_statistics():
         plt.show()
         
         self.save_plot(fig,'PAW_PLOT'+tag,folder)
+
+
+    def paw_plot_anatomic(self,angles,offset=0,err_ang=10,max_n=100,folder='',tag='',
+                          headlines=None,fontsize=14,fs_indicator=24):
+        """Plot inter-digit angles on an anatomically spaced paw schematic.
+
+        The four inter-digit circular standard deviations are represented by
+        translucent quadrilaterals.  One unit along a digit corresponds to
+        ``err_ang`` degrees, and two units correspond to ``2 * err_ang``.
+        """
+        # All visual and geometric metrics are kept together so this plot can
+        # be restyled without searching through the drawing code.
+        metrics = {
+            "points": {
+                "digit_bases": np.asarray([
+                    [-0.50, -0.50],
+                    [-0.30, -0.05],
+                    [ 0.00,  0.00],
+                    [ 0.30, -0.05],
+                    [ 0.45, -0.45],
+                ], dtype=float),
+                "paw_base2": np.asarray([0.20, -1.20]),
+                "paw_base1": np.asarray([-0.20, -1.20]),
+                "stalk_start": np.asarray([0.00, -1.20]),
+            },
+            "lengths": {
+                # Digit I has one scale interval; digits II--V have two.
+                "digits": np.asarray([1.0, 2, 2, 2, 2]),
+                "scale_interval": 1.0,
+                # Gap from a digit-V indicator to the left-centre text anchor.
+                "error_label_offset": 0.24,
+                "max_stalk": 1.3,
+            },
+            # "colors": {   # GRAY BASE 
+            #     "paw_fill": "gray",
+            #     "paw_edge": "gray",
+            #     "finger_primary": "gray",
+            #     "finger_secondary": "lightgray",
+            #     "finger_tip": "darkgrey",
+            #     "error_fill": "lightblue", # "mistyrose"
+            #     "scale_tick": [0.3, 0.0, 0.0, 0.5],
+            #     "stalk_outer": "gray",
+            #     "stalk_inner": "lightblue",
+            # },
+            
+            
+            "colors": {
+                "paw_fill": "rosybrown",
+                "paw_edge": "rosybrown",
+                "inner_patch_fill": "sienna",
+                "inner_patch_edge": "mistyrose",
+                "finger_primary": "rosybrown",
+                "finger_secondary": "rosybrown",
+                "finger_tip": "lightcoral",
+                "error_fill": "mistyrose", # "mistyrose"
+                "scale_tick": [0.3, 0.0, 0.0, 0.5],
+                "stalk_outer": "rosybrown",
+                "stalk_inner": "mistyrose",
+            },
+            
+            
+            
+            "levels": {
+                "stalk": 0,
+                "error_patches": 1,
+                "fingers": 2,
+                # The palm must mask every underlying plot element.
+                "paw_polygon": 10,
+                "inner_patch": 11,
+                "labels": 4,
+            },
+            "line_widths": {
+                "finger_primary": 6.0,
+                "finger_secondary": 3.0,
+                "paw_edge": 8.0,
+                "inner_patch": 0.1,
+                "scale_tick": 1.0,
+            },
+            "point_sizes": {
+                "first_interval": 48.0,
+                "finger_tip": 24.0,
+                "paw_vertex": 32.0,
+            },
+            "sizes": {
+                "inner_patch": 0.90,
+            },
+            "alpha": {
+                "error_patch": 1,
+                "paw_fill": 1,
+                "inner_patch": 0.25,
+                "stalk_inner": 1,
+                "stalk_background": 0.45,
+            },
+            "stalk": {
+                # This width exactly spans paw_base1.x to paw_base2.x.
+                "outer_width": 0.40,
+                "inner_width": 0.20,
+            },
+            "figure": {"dpi": 600, "figsize": (6, 6)},
+        }
+
+        ncorr = 0
+        angles = np.asarray(angles)
+        if angles.shape[0] == 1:
+            angles = np.vstack((angles, angles))
+            ncorr = 1
+
+        if hasattr(self, 'paw_plot_settings'):
+            offset = self.paw_plot_settings['offset']
+            err_ang = self.paw_plot_settings['err_ang']
+            max_n = self.paw_plot_settings['max_n']
+
+        selected_angles = angles[:, 0, self.interesting_idcs]
+        selected_rad = np.deg2rad(selected_angles)
+        angs = np.rad2deg(scipy.stats.circmean(selected_rad, axis=0))
+        var = np.rad2deg(scipy.stats.circstd(selected_rad, axis=0))
+        if ncorr:
+            var[:] = 0.0
+
+        # Orientations are expressed clockwise from vertical.  Digit III is
+        # the zero reference; offset remains available as a global rotation.
+        orientations = np.asarray([
+            angs[0] + angs[1],
+            angs[1],
+            0.0,
+            -angs[2],
+            -angs[2] - angs[3],
+        ])
+        plot_angles = np.deg2rad(90.0 + orientations)
+        directions = np.column_stack((np.cos(plot_angles), np.sin(plot_angles)))
+
+        bases = metrics["points"]["digit_bases"]
+        digit_lengths = metrics["lengths"]["digits"]
+        endpoints = bases + directions * digit_lengths[:, None]
+        colors = metrics["colors"]
+        levels = metrics["levels"]
+        widths = metrics["line_widths"]
+        sizes = metrics["point_sizes"]
+
+        fig, ax = plt.subplots(**metrics["figure"])
+        ax.set_aspect('equal', adjustable='box')
+
+        # Lowest layer: one uncertainty quadrilateral per adjacent digit pair.
+        # std / err_ang is the distance along each finger in scale intervals.
+        scale_denominator = abs(float(err_ang))
+        for idx in range(4):
+            scaled_error = 0.0 if scale_denominator == 0 else var[idx] / scale_denominator
+            # Digit I is physically shorter than its possible uncertainty.
+            # For the I--II patch, continue its ray beyond the visible tip so
+            # the polygon vertex lies where an extended digit I would meet the
+            # full error interval.
+            if idx == 0:
+                left_distance = max(scaled_error, 0.0)
+            else:
+                left_distance = min(max(scaled_error, 0.0), digit_lengths[idx])
+            right_distance = min(max(scaled_error, 0.0), digit_lengths[idx + 1])
+            left_error_point = bases[idx] + directions[idx] * left_distance
+            right_error_point = bases[idx + 1] + directions[idx + 1] * right_distance
+            patch = np.vstack((
+                bases[idx],
+                left_error_point,
+                right_error_point,
+                bases[idx + 1],
+            ))
+            ax.fill(
+                patch[:, 0], patch[:, 1],
+                color=colors["error_fill"],
+                alpha=metrics["alpha"]["error_patch"],
+                edgecolor="none",
+                zorder=levels["error_patches"],
+            )
+
+        # Fingers: a thick first interval and a finer second interval.  Their
+        # endpoints make the err_ang and 2*err_ang scale visually explicit.
+        interval = metrics["lengths"]["scale_interval"]
+        for idx, (base, direction, length) in enumerate(
+                zip(bases, directions, digit_lengths)):
+            first_end = base + direction * min(interval, length)
+            ax.plot(
+                [base[0], first_end[0]], [base[1], first_end[1]],
+                color=colors["finger_primary"],
+                linewidth=widths["finger_primary"],
+                solid_capstyle='round', zorder=levels["fingers"],
+            )
+            ax.scatter(
+                first_end[0], first_end[1], s=sizes["first_interval"],
+                color=colors["finger_secondary"],
+                zorder=levels["fingers"],
+            )
+            if length > interval:
+                ax.plot(
+                    [first_end[0], endpoints[idx, 0]],
+                    [first_end[1], endpoints[idx, 1]],
+                    color=colors["finger_secondary"],
+                    linewidth=widths["finger_secondary"],
+                    solid_capstyle='round', zorder=levels["fingers"],
+                )
+                ax.scatter(
+                    endpoints[idx, 0], endpoints[idx, 1],
+                    s=sizes["finger_tip"], color=colors["finger_tip"],
+                    zorder=levels["fingers"],
+                )
+
+        # Sample-size stalk, descending from the requested stalk start.  The
+        # muted full-length line prevents the stalk from appearing truncated;
+        # the foreground lines retain the original sample-size encoding.
+        stalk_start = metrics["points"]["stalk_start"]
+        n_fraction = np.clip((angles.shape[0] - ncorr) / max_n, 0.0, 1.0) if max_n else 0.0
+        stalk_length = n_fraction * metrics["lengths"]["max_stalk"]
+        outer_half = metrics["stalk"]["outer_width"] / 2.0
+        stalk_bottom = stalk_start[1] - stalk_length
+        full_stalk_bottom = stalk_start[1] - metrics["lengths"]["max_stalk"]
+        stalk_background, = ax.plot(
+            [stalk_start[0], stalk_start[0]],
+            [stalk_start[1], full_stalk_bottom],
+            color=colors["stalk_outer"],
+            alpha=metrics["alpha"]["stalk_background"],
+            solid_capstyle='round', zorder=levels["stalk"],
+        )
+        stalk_outer, = ax.plot(
+            [stalk_start[0], stalk_start[0]],
+            [stalk_start[1], stalk_bottom],
+            color=colors["stalk_outer"], solid_capstyle='round',
+            zorder=levels["stalk"],
+        )
+        stalk_inner, = ax.plot(
+            [stalk_start[0], stalk_start[0]],
+            [stalk_start[1], stalk_bottom],
+            color=colors["stalk_inner"],
+            alpha=metrics["alpha"]["stalk_inner"],
+            solid_capstyle='round', zorder=levels["stalk"],
+        )
+
+        half_y = stalk_start[1] - metrics["lengths"]["max_stalk"] / 2.0
+        full_y = stalk_start[1] - metrics["lengths"]["max_stalk"]
+        for y_value, label in ((half_y, int(max_n / 2)), (full_y, max_n)):
+            ax.plot(
+                [-outer_half, outer_half], [y_value, y_value],
+                linewidth=widths["scale_tick"], color=colors["scale_tick"],
+                solid_capstyle='round', zorder=levels["stalk"],
+            )
+            ax.text(
+                outer_half + 0.08, y_value, f'{label}', ha='left', va='center',
+                fontsize=fontsize, zorder=levels["stalk"],
+            )
+
+        # Top layer: anatomical palm polygon and rounded vertex markers.
+        paw_polygon = np.vstack((
+            bases,
+            metrics["points"]["paw_base2"],
+            metrics["points"]["paw_base1"],
+        ))
+        ax.fill(
+            paw_polygon[:, 0], paw_polygon[:, 1],
+            color=colors["paw_fill"], alpha=metrics["alpha"]["paw_fill"],
+            edgecolor=colors["paw_edge"], linewidth=widths["paw_edge"],
+            zorder=levels["paw_polygon"],
+        )
+        ax.scatter(
+            paw_polygon[:, 0], paw_polygon[:, 1],
+            s=sizes["paw_vertex"], color=colors["paw_fill"],
+            edgecolors=colors["paw_edge"], linewidths=widths["paw_edge"],
+            zorder=levels["paw_polygon"],
+        )
+
+        # Scale the overlay about the original patch center. This creates a
+        # concentric inner patch rather than pulling it toward the origin.
+        patch_center = paw_polygon.mean(axis=0)
+        inner_patch = patch_center + (
+            paw_polygon - patch_center
+        ) * metrics["sizes"]["inner_patch"]
+        ax.fill(
+            inner_patch[:, 0], inner_patch[:, 1],
+            color=colors["inner_patch_fill"],
+            alpha=metrics["alpha"]["inner_patch"],
+            edgecolor=colors["inner_patch_edge"],
+            linewidth=widths["inner_patch"],
+            zorder=levels["inner_patch"],
+        )
+
+        # Keep the original optional digit indicators, now positioned at the
+        # actual anatomical finger endpoints.
+        if headlines is not None:
+            names = ['i', 'ii', 'iii', 'iv', 'v']
+            for idx, headline_color in enumerate(headlines):
+                label_point = endpoints[idx] + directions[idx] * 0.25
+                ax.text(
+                    label_point[0], label_point[1], names[idx],
+                    fontsize=fs_indicator, color=headline_color,
+                    ha='center', va='center', zorder=levels["labels"],
+                )
+
+        # Explicit error-scale labels replace the old circular-arc labels and
+        # are attached to digit V rather than digit II.
+        digit_v_angle = np.rad2deg(np.arctan2(directions[4, 1], directions[4, 0]))
+        error_label_rotation = digit_v_angle - 90.0
+        # Place each label a fixed distance from its scale point along the
+        # clockwise perpendicular to digit V.  This is also the direction in
+        # which the rotated text runs, so its left-centre anchor, scale point,
+        # and offset all lie on the same perpendicular line.
+        error_label_distance = metrics["lengths"]["error_label_offset"]
+        error_label_direction = np.asarray([directions[4, 1], -directions[4, 0]])
+        endpoint_label_point = (
+            endpoints[4] + error_label_direction * error_label_distance
+        )
+        # ax.scatter(
+        #     endpoint_label_point[0], endpoint_label_point[1],
+        #     marker='+', color='black', zorder=levels["labels"],
+        # )
+        ax.text(
+            endpoint_label_point[0], endpoint_label_point[1], f'{2 * err_ang} °',
+            rotation=error_label_rotation,rotation_mode="anchor", fontsize=fontsize,
+            ha='left', va='center_baseline', zorder=levels["labels"],
+        )
+        first_scale_point = bases[4] + directions[4] * interval
+        first_scale_label_point = (
+            first_scale_point + error_label_direction * error_label_distance
+        )
+        # ax.scatter(
+        #     first_scale_label_point[0], first_scale_label_point[1],
+        #     marker='+', color='black', zorder=levels["labels"],
+        # )
+        ax.text(
+            first_scale_label_point[0], first_scale_label_point[1], f'{err_ang} °',
+            rotation=error_label_rotation,rotation_mode="anchor", fontsize=fontsize,
+            ha='left', va='center', zorder=levels["labels"],
+        )
+        print(f'{2 * err_ang} °')
+        print(f'{err_ang} °')
+
+        ax.axis('off')
+        ax.relim()
+        ax.autoscale_view()
+        ax.margins(x=0.08, y=0.10)
+
+        # Convert the requested data-coordinate stalk widths to Matplotlib
+        # point widths after limits are final. This keeps the outer line fitted
+        # precisely between paw_base1.x and paw_base2.x while retaining round
+        # caps at any figure size.
+        fig.canvas.draw()
+        left_px = ax.transData.transform((stalk_start[0] - outer_half, 0.0))[0]
+        right_px = ax.transData.transform((stalk_start[0] + outer_half, 0.0))[0]
+        outer_width_points = abs(right_px - left_px) * 72.0 / fig.dpi
+        inner_width_points = (
+            outer_width_points * metrics["stalk"]["inner_width"] /
+            metrics["stalk"]["outer_width"]
+        )
+        stalk_background.set_linewidth(outer_width_points)
+        stalk_outer.set_linewidth(outer_width_points)
+        stalk_inner.set_linewidth(inner_width_points)
+        plt.show()
+        self.save_plot(fig, 'PAW_PLOT_ANATOMIC' + tag, folder)
         
         
     def draw_circle_segments(self,ax,start_angles, end_angles, radii, center_x, center_y, colors=('blue', 'green')):
@@ -4012,7 +4625,8 @@ class paw_statistics():
                            'visibility':tf['varList'][2][k],
                            'truncated':tf['varList'][3][k],
                            'height':tf['varList'][4][k],
-                           'width':tf['varList'][5][k]}
+                           'ant_or_post':tf['varList'][16][k]}
+        
             meta_data.append(new_row)
         return pts,bxs,meta_data           
  

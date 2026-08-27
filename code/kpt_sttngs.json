@@ -1,5 +1,11 @@
 {
-	"threshold":0.95,
+	"model_path":"/home/dominik/models/paw_statistics/model/",
+	"detector_model_path":"/home/dominik/models/paw_statistics/model/Detect_4paws_1024_yolo11s.pt",
+	"hind_model_path":"/home/dominik/models/paw_statistics/model/Pose_HP480_Yolo11m_WEIGHTED_best.pt",
+	"front_model_path":"/home/dominik/models/paw_statistics/model/Pose_HP480_Yolo11m_WEIGHTED_best.pt",
+	"metadata_path":"/home/dominik/models/paw_statistics/code/metadata.json",
+	"padding":0.65,
+	"threshold":0.5,
 	"connect_logic": [[0, 1],
 			 [0, 3],
 			 [0, 6],
