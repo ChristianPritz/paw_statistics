@@ -18,12 +18,18 @@ import numpy as np
 from PIL import Image, ImageTk
 from pathlib import Path
 import matplotlib.pyplot as plt
-from interactive_plot_UI import interactive_plot_UI
-from paw_statistics import paw_statistics
+from .interactive_plot_UI import interactive_plot_UI
+from .paw_statistics import paw_statistics
+from . import weighted_keypoint_losses as _weighted_keypoint_losses
 from dataclasses import dataclass
 import numpy as np
 from ultralytics import YOLO
 from enum import IntEnum
+
+# Older weighted-pose checkpoints may contain the original top-level module
+# name. Keep that name resolvable while using the installed package layout.
+import sys
+sys.modules.setdefault("weighted_keypoint_losses", _weighted_keypoint_losses)
 
 
 def _show_in_foreground(window, parent=None):

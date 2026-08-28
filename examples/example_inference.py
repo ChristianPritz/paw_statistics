@@ -10,8 +10,7 @@ Created on Wed Aug 26 21:44:08 2026
 # -------------------------------------------------------------------------
 import json
 from pathlib import Path
-from paw_UI import ImageSequenceExporter
-from DataFrameViewerUI import DataFrameViewerUI
+from paw_statistics import DataFrameViewerUI
 
 # -------------------------------------------------------------------------
 # helper functions 

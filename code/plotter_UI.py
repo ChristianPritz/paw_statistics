@@ -4,7 +4,6 @@ import numpy as np
 from tkinter import colorchooser
 from tkinter import ttk, filedialog
 from itertools import combinations, product
-from IPython import embed
 
 class PlotterUI:
     """

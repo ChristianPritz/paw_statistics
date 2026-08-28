@@ -8,15 +8,15 @@ Created on Mon Jan 19 17:15:32 2026
 
 import tkinter as tk
 import tkinter.font as tkfont
-from paw_statistics import paw_statistics
+from .paw_statistics import paw_statistics
 from tkinter import ttk, filedialog, messagebox
 import pandas as pd
 import os,cv2,json,inspect
 from PIL import Image, ImageTk
 import numpy as np
 import pandas as pd 
-from interactive_plot_UI import interactive_plot_UI
-from paw_UI import ImageSequenceExporter
+from .interactive_plot_UI import interactive_plot_UI
+from .paw_UI import ImageSequenceExporter
 
 
 def _show_in_foreground(window, parent=None):
