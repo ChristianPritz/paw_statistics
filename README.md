@@ -85,11 +85,6 @@ python fetch_from_osf.py
 
 The default public OSF resource ID used by the example is `dc745`.
 
-8) Verify installation and GPU (if applicable)
-```bash
-python verify_installation.py
-```
-
 
 ---
 ## Known issues
