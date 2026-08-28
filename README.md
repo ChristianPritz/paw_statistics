@@ -1,12 +1,12 @@
 # paw_statistics
 
 is a Python framework for analysis of static hind paw postures.
-NOTE: The repository is being updated: first update will be fully completed by 30/08/2026, second update mid September 2026. We apologize for any inconvenience. 
+NOTE: The repository is being updated: Next update will be mid September 2026. This will include models that are more robust against variation in input images. Moreover it will include examples for plotting and analysis. We apologize for any inconvenience. 
 
 ## Paw keypoint segmentation and Analysis Pipeline
 
-A complete, modular pipeline for keypoint segmentation and analysis built on Detectron2.
-This toolkit, implemented in PyTorch, enables you to run inference on images of mouse hindpaws, review and correct keypoint predictions through an intuitive user interface, and perform morphological and statistical analyses using common Python libraries. The models can be custom-trained within a Detectron2 environment.
+A complete, modular, semi-automatic pipeline for keypoint segmentation and analysis built on YOLO11 models. 
+This toolkit, implemented in PyTorch, enables you to run inference on images of mouse hindpaws, review and correct keypoint predictions through an intuitive user interface, and perform morphological and statistical analyses using common Python libraries. The models can be custom-trained within a Ultralytics environment.
 
 ---
 
@@ -25,7 +25,7 @@ Inference requires Python 3.10 or newer, Tkinter, PyTorch, Ultralytics, and the 
 
 The current inference pipeline uses YOLO models through Ultralytics.
 
-Use the virtual environment setup instructions above to keep dependencies isolated.
+Use the virtual environment setup instructions below to keep dependencies isolated.
 
 ---
 
@@ -95,9 +95,6 @@ python verify_installation.py
 ## Known issues
 
 * reduced keypoint placement accuracy when paws are closely spaced
-* Colab sessions are temporary. Download saved ZIP/CSV results before disconnecting the runtime.
-
-
 
 ---
 

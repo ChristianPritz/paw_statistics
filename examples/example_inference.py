@@ -8,9 +8,6 @@ Created on Wed Aug 26 21:44:08 2026
 # -------------------------------------------------------------------------
 # imports
 # -------------------------------------------------------------------------
-
-import os 
-os.chdir('/home/dominik/models/paw_bench/code')
 import json
 from pathlib import Path
 from paw_UI import ImageSequenceExporter
@@ -25,23 +22,6 @@ def dump_dict_to_json(data, path):
     path = Path(path)
     with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
-    return path
-
-
-def load_json(path):
-    with Path(path).open("r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def require_existing_path(label, path, must_be_file=False):
-    path = Path(path).expanduser()
-
-    if not path.exists():
-        raise FileNotFoundError(f"{label} does not exist:\n{path}")
-
-    if must_be_file and not path.is_file():
-        raise FileNotFoundError(f"{label} is not a file:\n{path}")
-
     return path
 
 
@@ -63,10 +43,18 @@ METADATA = {
     "useful": ["yes", "no"],
     "ant_or_post": ["post", "ant"]
 }
+# Adding a list as the value for a key creates a dropdown menu:
+# "treatment": ["SURGERY", "CONTROL"] allows the user to select either
+# "SURGERY" or "CONTROL".
+#
+# Adding a string as the value creates a free-text input field, allowing
+# the user to enter any value manually.
 
 
-dump_dict_to_json(METADATA, "examples/metadata.json") 
-#so it can be loaded by ImageSequenceImporter instance
+metadata_save_path = "PLEASE_SPECIFY_A_SAVEPATH/metadata.json"
+dump_dict_to_json(METADATA, metadata_save_path) 
+#When pressing "Add paws" button you will be prompted to specify the path to 
+#your experimental metadata. 
 
 
 # -------------------------------------------------------------------------

@@ -8,16 +8,15 @@ Created on Mon Jan 19 17:15:32 2026
 
 import tkinter as tk
 import tkinter.font as tkfont
-from .paw_statistics import paw_statistics
+from paw_statistics import paw_statistics
 from tkinter import ttk, filedialog, messagebox
 import pandas as pd
 import os,cv2,json,inspect
-from .paw_statistics import paw_statistics
 from PIL import Image, ImageTk
 import numpy as np
 import pandas as pd 
-from .interactive_plot_UI import interactive_plot_UI
-from .paw_UI import ImageSequenceExporter
+from interactive_plot_UI import interactive_plot_UI
+from paw_UI import ImageSequenceExporter
 
 
 def _show_in_foreground(window, parent=None):
@@ -50,6 +49,10 @@ class DataFrameViewerUI:
         if master is None:
             master = tk.Tk()
             self._owns_master = True
+
+        # DataFrameViewerUI.py lives in the ``code`` directory, so its parent
+        # directory is the deployable project root used by settings paths.
+        self.base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         
         pth,_= os.path.split(inspect.getfile(paw_statistics))
         settings_path = pth + '/' + "kpt_sttngs.json"
@@ -165,6 +168,15 @@ class DataFrameViewerUI:
         
         if self._owns_master:
             self.master.mainloop()
+
+    def _resolve_settings_path(self, path):
+        """Resolve a settings path relative to the project root."""
+        if not path:
+            return ""
+        path = os.path.expanduser(path)
+        if os.path.isabs(path):
+            return os.path.normpath(path)
+        return os.path.normpath(os.path.join(self.base_path, path))
 
     # ==========================================================
     # ===================== Core Methods =======================
@@ -304,16 +316,24 @@ class DataFrameViewerUI:
         # Variables
         # -------------------------------------------------
         object_model_path_var   = tk.StringVar(
-            value=self.detector_settings.get("detector_model_path", find_model())
+            value=self._resolve_settings_path(
+                self.detector_settings.get("detector_model_path", find_model())
+            )
         )
         hind_model_path_var = tk.StringVar(
-            value=self.detector_settings.get("hind_model_path", "")
+            value=self._resolve_settings_path(
+                self.detector_settings.get("hind_model_path", "")
+            )
         )
         front_model_path_var = tk.StringVar(
-            value=self.detector_settings.get("front_model_path", "")
+            value=self._resolve_settings_path(
+                self.detector_settings.get("front_model_path", "")
+            )
         )
         metadata_path_var = tk.StringVar(
-            value=self.detector_settings.get("metadata_path", "")
+            value=self._resolve_settings_path(
+                self.detector_settings.get("metadata_path", "")
+            )
         )
         
         device_var       = tk.StringVar(value="cpu")

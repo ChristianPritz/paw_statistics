@@ -18,8 +18,8 @@ import numpy as np
 from PIL import Image, ImageTk
 from pathlib import Path
 import matplotlib.pyplot as plt
-from .interactive_plot_UI import interactive_plot_UI
-from .paw_statistics import paw_statistics
+from interactive_plot_UI import interactive_plot_UI
+from paw_statistics import paw_statistics
 from dataclasses import dataclass
 import numpy as np
 from ultralytics import YOLO
@@ -1459,7 +1459,7 @@ class paw_cropper:
     @staticmethod
     def index_dir(self=None, directory=None, dataFrame=True):
         directory = directory or "."
-        exts = ['jpg','jpeg','png','tif','tiff']
+        exts = ['jpg','jpeg','png','tif','tiff','JPG','JPEG','PNG','TIF','TIFF']
         files = []
         for ext in exts:
             files += glob.glob(os.path.join(directory, f"*.{ext}"))
