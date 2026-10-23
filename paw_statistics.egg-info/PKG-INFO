@@ -1,0 +1,138 @@
+Metadata-Version: 2.4
+Name: paw_statistics
+Version: 1.0.0
+Summary: Python framework for analysis of static hind paw postures
+Home-page: https://github.com/ChristianPritz/paw_statistics
+Author: Christian Pritz
+License: MIT
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: torch
+Requires-Dist: torchvision
+Requires-Dist: ultralytics
+Requires-Dist: numpy
+Requires-Dist: requests
+Requires-Dist: pandas
+Requires-Dist: scipy
+Requires-Dist: matplotlib
+Requires-Dist: scikit-learn
+Requires-Dist: statsmodels
+Requires-Dist: pycircstat2
+Requires-Dist: opencv-python-headless
+Requires-Dist: Pillow
+Requires-Dist: IPython
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: flake8; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Dynamic: author
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# paw_statistics
+
+is a Python framework for analysis of static hind paw postures.
+NOTE: The repository is being updated: Next update will be mid September 2026. This will include models that are more robust against variation in input images. Moreover it will include examples for plotting and analysis. We apologize for any inconvenience. 
+
+## Paw keypoint segmentation and Analysis Pipeline
+
+A complete, modular, semi-automatic pipeline for keypoint segmentation and analysis built on YOLO11 models. 
+This toolkit, implemented in PyTorch, enables you to run inference on images of mouse hindpaws, review and correct keypoint predictions through an intuitive user interface, and perform morphological and statistical analyses using common Python libraries. The models can be custom-trained within a Ultralytics environment.
+
+---
+
+## Features
+- Inference and visualization of predicted keypoints
+- UI for post-hoc correction of predicted keypoints
+- Quantitative analysis (distances, angles, regression, clustering, circular stats)
+- Local Tkinter application and an all-in-one Google Colab notebook
+- YOLO object detection plus hind/front specialist pose models
+
+---
+
+## Requirements
+
+Inference requires Python 3.10 or newer, Tkinter, PyTorch, Ultralytics, and the packages listed in `requirements.txt`. Tkinter is normally supplied by Python itself; Conda users can install it with `conda install tk` if needed.
+
+The current inference pipeline uses YOLO models through Ultralytics.
+
+Use the virtual environment setup instructions below to keep dependencies isolated.
+
+---
+
+
+## Installation (Pytorch + GPU or CPU)
+
+These instructions are the default installation path and cover installing PyTorch, and all project dependencies so you can run inference and the full example pipeline. Make sure you choose the PyTorch wheel that matches your CUDA version (or use the CPU wheel if you do not have a GPU).
+
+1) Clone the repository
+```bash
+git clone https://github.com/ChristianPritz/paw_statistics
+cd paw_statistics
+```
+
+2) Create and activate a virtual environment (recommended)
+- Use conda (recommended if you use GPU):
+```bash
+conda create -n paw_statistics python=3.11
+conda activate paw_statistics
+```
+- or alternatively virtualenv in Unix / macOS:
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+- or virtualenv in Windows (PowerShell):
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+3) Upgrade pip and install PyTorch matching your CUDA (examples)
+- CUDA 12.1 example (adjust to your CUDA):
+```bash
+python -m pip install --upgrade pip
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+```
+- CPU-only example:
+```bash
+python -m pip install --upgrade pip
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+```
+4) Install project dependencies
+```bash
+pip install -r requirements.txt
+```
+5) Install into the environment
+- For development, use an editable install:
+```bash
+pip install -e .
+```
+
+6) Fetch the model and data from the OSF.io repository
+```bash
+python fetch_from_osf.py
+```
+
+The default public OSF resource ID used by the example is `dc745`.
+
+
+---
+## Known issues
+
+* reduced keypoint placement accuracy when paws are closely spaced
+
+---
+
+## License & Contact
+Please add a LICENSE file if you plan to publish. For questions or issues, open an issue on GitHub: https://github.com/ChristianPritz/paw_statistics/issues
